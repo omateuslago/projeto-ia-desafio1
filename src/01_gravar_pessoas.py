@@ -25,11 +25,11 @@ PASTA_DATASET = "dataset_pessoas"
 # ============================================================
 
 PESSOAS = [
-    "rogerio",
-    "hermes",
-    "ana",
-    "carlos",
-    "marcos"
+    "gabriel",
+    "joao",
+    "mateus",
+    "caio",
+    "arthur"
 ]
 
 
@@ -102,8 +102,8 @@ def obter_proximo_numero(pessoa):
     e retorna o próximo número disponível.
 
     Exemplo:
-        rogerio_001.wav
-        rogerio_002.wav
+        gabriel_001.wav
+        gabriel_002.wav
 
     Próximo número:
         3

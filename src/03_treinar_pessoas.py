@@ -56,11 +56,11 @@ def carregar_dataset():
     Cada pasta representa uma pessoa:
 
         dataset_pessoas/
-            rogerio/
-            hermes/
-            ana/
-            carlos/
-            marcos/
+            gabriel/
+            joao/
+            mateus/
+            caio/
+            arthur/
 
     Retorna:
 
