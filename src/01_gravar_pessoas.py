@@ -34,13 +34,7 @@ PESSOAS = [
 
 
 # ============================================================
-# FRASES PARA GRAVAÇÃO
-# ============================================================
-# As frases são variadas para evitar que o modelo associe
-# uma determinada frase à identidade da pessoa.
-#
-# É importante que cada participante grave frases diferentes
-# ao longo do dataset.
+# FRASES
 # ============================================================
 
 FRASES = [
@@ -82,79 +76,70 @@ FRASES = [
 # ============================================================
 
 def criar_pastas():
-    """
-    Cria a estrutura de pastas do dataset.
-    """
 
-    if not os.path.exists(PASTA_DATASET):
-        os.makedirs(PASTA_DATASET)
+    os.makedirs(
+        PASTA_DATASET,
+        exist_ok=True
+    )
 
     for pessoa in PESSOAS:
-        pasta_pessoa = os.path.join(PASTA_DATASET, pessoa)
 
-        if not os.path.exists(pasta_pessoa):
-            os.makedirs(pasta_pessoa)
+        pasta_pessoa = os.path.join(
+            PASTA_DATASET,
+            pessoa
+        )
+
+        os.makedirs(
+            pasta_pessoa,
+            exist_ok=True
+        )
 
 
 def obter_proximo_numero(pessoa):
-    """
-    Verifica quantos arquivos já existem na pasta da pessoa
-    e retorna o próximo número disponível.
 
-    Exemplo:
-        gabriel_001.wav
-        gabriel_002.wav
-
-    Próximo número:
-        3
-    """
-
-    pasta = os.path.join(PASTA_DATASET, pessoa)
-
-    arquivos = os.listdir(pasta)
+    pasta = os.path.join(
+        PASTA_DATASET,
+        pessoa
+    )
 
     numeros = []
 
-    for arquivo in arquivos:
+    for arquivo in os.listdir(pasta):
 
-        if arquivo.lower().endswith(".wav"):
+        if not arquivo.lower().endswith(".wav"):
+            continue
 
-            nome = os.path.splitext(arquivo)[0]
+        nome = os.path.splitext(
+            arquivo
+        )[0]
 
-            partes = nome.split("_")
+        partes = nome.split("_")
 
-            if len(partes) >= 2:
+        if len(partes) >= 2:
 
-                try:
-                    numero = int(partes[-1])
-                    numeros.append(numero)
+            try:
 
-                except ValueError:
-                    pass
+                numero = int(
+                    partes[-1]
+                )
 
-    if len(numeros) == 0:
+                numeros.append(numero)
+
+            except ValueError:
+                pass
+
+    if not numeros:
         return 1
 
     return max(numeros) + 1
 
 
-def escolher_frase(indice):
-    """
-    Retorna uma frase para a gravação.
+def escolher_frase():
 
-    O índice é utilizado para tentar distribuir as frases
-    entre as gravações.
-    """
-
-    frase = FRASES[indice % len(FRASES)]
-
-    return frase
+    return random.choice(FRASES)
 
 
 def gravar_audio(pessoa, numero, frase):
-    """
-    Realiza a gravação de um áudio e salva em formato WAV.
-    """
 
     arquivo_saida = os.path.join(
         PASTA_DATASET,
@@ -166,12 +151,17 @@ def gravar_audio(pessoa, numero, frase):
     print("=" * 60)
     print("PREPARAÇÃO PARA GRAVAÇÃO")
     print("=" * 60)
+
     print()
     print(f"Pessoa: {pessoa}")
-    print(f"Gravação: {numero}/{GRAVACOES_POR_PESSOA}")
+    print(
+        f"Gravação: {numero}/{GRAVACOES_POR_PESSOA}"
+    )
+
     print()
     print("Frase:")
     print(f'"{frase}"')
+
     print()
     print("Pressione ENTER quando estiver pronto.")
 
@@ -181,7 +171,9 @@ def gravar_audio(pessoa, numero, frase):
     print("Prepare-se...")
 
     for contagem in range(3, 0, -1):
+
         print(contagem)
+
         time.sleep(1)
 
     print()
@@ -191,6 +183,11 @@ def gravar_audio(pessoa, numero, frase):
     audio = pyaudio.PyAudio()
 
     try:
+
+        # Obtém antes de encerrar o PyAudio
+        tamanho_amostra = audio.get_sample_size(
+            FORMATO
+        )
 
         stream = audio.open(
             format=FORMATO,
@@ -203,7 +200,7 @@ def gravar_audio(pessoa, numero, frase):
     except Exception as erro:
 
         print()
-        print("ERRO AO acessar o microfone.")
+        print("ERRO AO ACESSAR O MICROFONE.")
         print()
         print(f"Detalhes: {erro}")
 
@@ -214,14 +211,14 @@ def gravar_audio(pessoa, numero, frase):
     frames = []
 
     quantidade_blocos = int(
-        TAXA_AMOSTRAGEM /
-        TAMANHO_BUFFER *
-        DURACAO_GRAVACAO
+        TAXA_AMOSTRAGEM
+        / TAMANHO_BUFFER
+        * DURACAO_GRAVACAO
     )
 
-    for _ in range(quantidade_blocos):
+    try:
 
-        try:
+        for _ in range(quantidade_blocos):
 
             dados = stream.read(
                 TAMANHO_BUFFER,
@@ -230,16 +227,18 @@ def gravar_audio(pessoa, numero, frase):
 
             frames.append(dados)
 
-        except Exception as erro:
+    except Exception as erro:
 
-            print()
-            print(f"Erro durante a gravação: {erro}")
+        print()
+        print(
+            f"Erro durante a gravação: {erro}"
+        )
 
-            stream.stop_stream()
-            stream.close()
-            audio.terminate()
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
 
-            return False
+        return False
 
     print()
     print(">>> GRAVAÇÃO FINALIZADA <<<")
@@ -250,32 +249,47 @@ def gravar_audio(pessoa, numero, frase):
 
     try:
 
-        with wave.open(arquivo_saida, "wb") as arquivo:
+        with wave.open(
+            arquivo_saida,
+            "wb"
+        ) as arquivo:
 
-            arquivo.setnchannels(CANAIS)
-            arquivo.setsampwidth(audio.get_sample_size(FORMATO))
-            arquivo.setframerate(TAXA_AMOSTRAGEM)
-            arquivo.writeframes(b"".join(frames))
+            arquivo.setnchannels(
+                CANAIS
+            )
+
+            arquivo.setsampwidth(
+                tamanho_amostra
+            )
+
+            arquivo.setframerate(
+                TAXA_AMOSTRAGEM
+            )
+
+            arquivo.writeframes(
+                b"".join(frames)
+            )
 
     except Exception as erro:
 
         print()
         print("ERRO AO SALVAR O ARQUIVO.")
-        print(f"Detalhes: {erro}")
+        print(
+            f"Detalhes: {erro}"
+        )
 
         return False
 
     print()
     print("✓ Áudio salvo com sucesso!")
-    print(f"Arquivo: {arquivo_saida}")
+    print(
+        f"Arquivo: {arquivo_saida}"
+    )
 
     return True
 
 
 def mostrar_progresso():
-    """
-    Mostra a quantidade de gravações existentes para cada pessoa.
-    """
 
     print()
     print("=" * 60)
@@ -284,18 +298,20 @@ def mostrar_progresso():
 
     for pessoa in PESSOAS:
 
-        pasta = os.path.join(PASTA_DATASET, pessoa)
+        pasta = os.path.join(
+            PASTA_DATASET,
+            pessoa
+        )
 
         quantidade = 0
 
         if os.path.exists(pasta):
 
-            arquivos = os.listdir(pasta)
-
-            for arquivo in arquivos:
-
-                if arquivo.lower().endswith(".wav"):
-                    quantidade += 1
+            quantidade = len([
+                arquivo
+                for arquivo in os.listdir(pasta)
+                if arquivo.lower().endswith(".wav")
+            ])
 
         print(
             f"{pessoa:<15} "
@@ -306,13 +322,10 @@ def mostrar_progresso():
 
 
 def gravar_pessoa(pessoa):
-    """
-    Realiza todas as gravações de uma pessoa.
-    """
 
-    pasta = os.path.join(PASTA_DATASET, pessoa)
-
-    numero_inicial = obter_proximo_numero(pessoa)
+    numero_inicial = obter_proximo_numero(
+        pessoa
+    )
 
     if numero_inicial > GRAVACOES_POR_PESSOA:
 
@@ -326,7 +339,9 @@ def gravar_pessoa(pessoa):
 
     print()
     print("=" * 60)
-    print(f"INICIANDO DATASET: {pessoa.upper()}")
+    print(
+        f"INICIANDO DATASET: {pessoa.upper()}"
+    )
     print("=" * 60)
 
     for numero in range(
@@ -334,13 +349,7 @@ def gravar_pessoa(pessoa):
         GRAVACOES_POR_PESSOA + 1
     ):
 
-        # Escolhe uma frase de maneira variada
-        indice = (
-            (numero - 1) +
-            PESSOAS.index(pessoa) * 7
-        )
-
-        frase = escolher_frase(indice)
+        frase = escolher_frase()
 
         sucesso = gravar_audio(
             pessoa,
@@ -351,65 +360,80 @@ def gravar_pessoa(pessoa):
         if not sucesso:
 
             print()
-            print("A gravação não pôde ser concluída.")
-            print("O programa será encerrado.")
+            print(
+                "A gravação não pôde ser concluída."
+            )
 
             return
 
-        print()
-
-        # Pequena pausa antes da próxima gravação
         time.sleep(1)
 
     print()
     print("=" * 60)
-    print(f"DATASET DE {pessoa.upper()} FINALIZADO!")
+    print(
+        f"DATASET DE {pessoa.upper()} FINALIZADO!"
+    )
     print("=" * 60)
 
 
 def menu():
-    """
-    Menu principal do programa.
-    """
 
     while True:
 
         print()
-        print()
         print("=" * 60)
-        print("       DATASET DE PESSOAS - RECONHECIMENTO DE VOZ")
+        print(
+            "DATASET DE PESSOAS - RECONHECIMENTO DE VOZ"
+        )
         print("=" * 60)
 
         print()
         print("Participantes:")
 
-        for indice, pessoa in enumerate(PESSOAS, start=1):
-            print(f"{indice} - {pessoa}")
+        for indice, pessoa in enumerate(
+            PESSOAS,
+            start=1
+        ):
+
+            print(
+                f"{indice} - {pessoa}"
+            )
 
         print()
         print("6 - Mostrar progresso")
         print("0 - Encerrar")
         print()
 
-        opcao = input("Escolha uma opção: ").strip()
+        opcao = input(
+            "Escolha uma opção: "
+        ).strip()
 
         if opcao == "0":
 
             print()
             print("Programa encerrado.")
+
             break
 
         elif opcao == "6":
 
             mostrar_progresso()
 
-        elif opcao in ["1", "2", "3", "4", "5"]:
+        elif opcao in [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+        ]:
 
             indice = int(opcao) - 1
 
             pessoa = PESSOAS[indice]
 
-            gravar_pessoa(pessoa)
+            gravar_pessoa(
+                pessoa
+            )
 
         else:
 
@@ -425,18 +449,34 @@ if __name__ == "__main__":
 
     print()
     print("=" * 60)
-    print("      SISTEMA DE GRAVAÇÃO DO DATASET DE PESSOAS")
+    print(
+        "SISTEMA DE GRAVAÇÃO DO DATASET DE PESSOAS"
+    )
     print("=" * 60)
 
     print()
     print("Configurações:")
-    print(f"- Taxa de amostragem: {TAXA_AMOSTRAGEM} Hz")
-    print(f"- Canais: {CANAIS} (mono)")
-    print(f"- Duração: {DURACAO_GRAVACAO} segundos")
-    print(f"- Gravações por pessoa: {GRAVACOES_POR_PESSOA}")
+    print(
+        f"- Taxa de amostragem: "
+        f"{TAXA_AMOSTRAGEM} Hz"
+    )
+
+    print(
+        f"- Canais: {CANAIS} (mono)"
+    )
+
+    print(
+        f"- Duração: "
+        f"{DURACAO_GRAVACAO} segundos"
+    )
+
+    print(
+        f"- Gravações por pessoa: "
+        f"{GRAVACOES_POR_PESSOA}"
+    )
+
     print()
 
     criar_pastas()
 
     menu()
-

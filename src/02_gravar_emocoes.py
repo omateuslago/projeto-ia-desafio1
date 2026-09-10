@@ -15,14 +15,29 @@ CANAIS = 1
 FORMATO = pyaudio.paInt16
 TAMANHO_BUFFER = 1024
 
-DURACAO = 4
+DURACAO_GRAVACAO = 4
 
-# O professor exige no mínimo 25 por emoção.
-# Vamos usar 30 para ter uma margem.
-NUM_GRAVACOES_POR_EMOCAO = 30
+GRAVACOES_POR_PESSOA_EMOCAO = 6
 
 PASTA_DATASET = "dataset_emocoes"
 
+
+# ============================================================
+# PARTICIPANTES
+# ============================================================
+
+PESSOAS = [
+    "gabriel",
+    "joao",
+    "mateus",
+    "caio",
+    "arthur"
+]
+
+
+# ============================================================
+# EMOÇÕES
+# ============================================================
 
 EMOCOES = [
     "alegre",
@@ -71,58 +86,67 @@ FRASES = [
 
 
 # ============================================================
-# PREPARAÇÃO DAS PASTAS
+# PREPARAÇÃO
 # ============================================================
 
-os.makedirs(PASTA_DATASET, exist_ok=True)
-
-for emocao in EMOCOES:
-
-    pasta_emocao = os.path.join(
-        PASTA_DATASET,
-        emocao
-    )
+def criar_pastas():
 
     os.makedirs(
-        pasta_emocao,
+        PASTA_DATASET,
         exist_ok=True
     )
 
+    for emocao in EMOCOES:
+
+        pasta = os.path.join(
+            PASTA_DATASET,
+            emocao
+        )
+
+        os.makedirs(
+            pasta,
+            exist_ok=True
+        )
+
 
 # ============================================================
-# FUNÇÕES
+# CONTAGEM
 # ============================================================
 
-def contar_gravacoes(emocao):
-    """
-    Conta quantos arquivos WAV existem
-    na pasta da emoção.
-    """
+def contar_gravacoes(pessoa, emocao):
 
     pasta = os.path.join(
         PASTA_DATASET,
         emocao
     )
+
+    prefixo = f"{pessoa}_{emocao}_"
+
+    if not os.path.exists(pasta):
+        return 0
 
     arquivos = [
         arquivo
         for arquivo in os.listdir(pasta)
         if arquivo.lower().endswith(".wav")
+        and arquivo.startswith(prefixo)
     ]
 
     return len(arquivos)
 
 
-def proximo_numero(emocao):
-    """
-    Descobre o próximo número disponível
-    para o arquivo da emoção.
-    """
+# ============================================================
+# PRÓXIMO NÚMERO
+# ============================================================
+
+def proximo_numero(pessoa, emocao):
 
     pasta = os.path.join(
         PASTA_DATASET,
         emocao
     )
+
+    prefixo = f"{pessoa}_{emocao}_"
 
     numeros = []
 
@@ -131,24 +155,25 @@ def proximo_numero(emocao):
         if not arquivo.lower().endswith(".wav"):
             continue
 
+        if not arquivo.startswith(prefixo):
+            continue
+
         nome = os.path.splitext(
             arquivo
         )[0]
 
         partes = nome.split("_")
 
-        if len(partes) != 2:
-            continue
-
         try:
 
-            numero = int(partes[1])
+            numero = int(
+                partes[-1]
+            )
 
             numeros.append(numero)
 
         except ValueError:
-
-            continue
+            pass
 
     if not numeros:
         return 1
@@ -156,137 +181,167 @@ def proximo_numero(emocao):
     return max(numeros) + 1
 
 
-def gravar_audio(audio, stream):
-    """
-    Grava um áudio de DURACAO segundos.
-    """
+# ============================================================
+# GRAVAÇÃO
+# ============================================================
+
+def gravar_audio():
+
+    audio = pyaudio.PyAudio()
+
+    try:
+
+        tamanho_amostra = audio.get_sample_size(
+            FORMATO
+        )
+
+        stream = audio.open(
+            format=FORMATO,
+            channels=CANAIS,
+            rate=TAXA_AMOSTRAGEM,
+            input=True,
+            frames_per_buffer=TAMANHO_BUFFER
+        )
+
+    except Exception as erro:
+
+        print()
+        print("ERRO AO ACESSAR O MICROFONE.")
+        print(
+            f"Detalhes: {erro}"
+        )
+
+        audio.terminate()
+
+        return None, None
 
     frames = []
 
     quantidade_blocos = int(
         TAXA_AMOSTRAGEM
         / TAMANHO_BUFFER
-        * DURACAO
+        * DURACAO_GRAVACAO
     )
 
-    for _ in range(quantidade_blocos):
+    try:
 
-        dados = stream.read(
-            TAMANHO_BUFFER,
-            exception_on_overflow=False
-        )
+        for _ in range(
+            quantidade_blocos
+        ):
 
-        frames.append(dados)
+            dados = stream.read(
+                TAMANHO_BUFFER,
+                exception_on_overflow=False
+            )
 
-    return b"".join(frames)
+            frames.append(dados)
 
-
-def salvar_audio(
-    dados,
-    caminho
-):
-    """
-    Salva os dados gravados no formato WAV.
-    """
-
-    arquivo = wave.open(
-        caminho,
-        "wb"
-    )
-
-    arquivo.setnchannels(
-        CANAIS
-    )
-
-    arquivo.setsampwidth(
-        audio.get_sample_size(FORMATO)
-    )
-
-    arquivo.setframerate(
-        TAXA_AMOSTRAGEM
-    )
-
-    arquivo.writeframes(
-        dados
-    )
-
-    arquivo.close()
-
-
-def mostrar_progresso():
-    """
-    Mostra a quantidade de gravações
-    de cada emoção.
-    """
-
-    print()
-    print("=" * 55)
-    print("PROGRESSO DO DATASET DE EMOÇÕES")
-    print("=" * 55)
-
-    total = 0
-
-    for emocao in EMOCOES:
-
-        quantidade = contar_gravacoes(
-            emocao
-        )
-
-        total += quantidade
-
-        status = "OK" if quantidade >= 25 else "PENDENTE"
-
-        print(
-            f"{emocao:<10} "
-            f"{quantidade:>3} gravações "
-            f"[{status}]"
-        )
-
-    print("-" * 55)
-
-    print(
-        f"Total: {total} gravações"
-    )
-
-    print("=" * 55)
-    print()
-
-
-def gravar_emocao(emocao):
-    """
-    Realiza as gravações de uma emoção.
-    """
-
-    quantidade_atual = contar_gravacoes(
-        emocao
-    )
-
-    if quantidade_atual >= NUM_GRAVACOES_POR_EMOCAO:
+    except Exception as erro:
 
         print()
         print(
-            f"A emoção '{emocao}' "
-            f"já possui {quantidade_atual} gravações."
+            f"Erro durante a gravação: {erro}"
         )
 
-        resposta = input(
-            "Deseja gravar mais mesmo assim? "
-            "(s/n): "
-        ).strip().lower()
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
 
-        if resposta != "s":
-            return
+        return None, None
+
+    stream.stop_stream()
+    stream.close()
+    audio.terminate()
+
+    return (
+        b"".join(frames),
+        tamanho_amostra
+    )
+
+
+# ============================================================
+# SALVAR
+# ============================================================
+
+def salvar_audio(
+    dados,
+    tamanho_amostra,
+    caminho
+):
+
+    with wave.open(
+        caminho,
+        "wb"
+    ) as arquivo:
+
+        arquivo.setnchannels(
+            CANAIS
+        )
+
+        arquivo.setsampwidth(
+            tamanho_amostra
+        )
+
+        arquivo.setframerate(
+            TAXA_AMOSTRAGEM
+        )
+
+        arquivo.writeframes(
+            dados
+        )
+
+
+# ============================================================
+# GRAVAR UMA EMOÇÃO
+# ============================================================
+
+def gravar_emocao(
+    pessoa,
+    emocao
+):
+
+    quantidade_atual = contar_gravacoes(
+        pessoa,
+        emocao
+    )
+
+    if quantidade_atual >= (
+        GRAVACOES_POR_PESSOA_EMOCAO
+    ):
+
+        print()
+        print(
+            f"{pessoa} já possui "
+            f"{quantidade_atual} gravações "
+            f"da emoção '{emocao}'."
+        )
+
+        return
 
     numero = proximo_numero(
+        pessoa,
         emocao
+    )
+
+    faltam = (
+        GRAVACOES_POR_PESSOA_EMOCAO
+        - quantidade_atual
     )
 
     print()
     print("=" * 60)
     print(
-        f"GRAVAÇÃO DE EMOÇÃO: {emocao.upper()}"
+        f"PARTICIPANTE: {pessoa.upper()}"
+    )
+    print(
+        f"EMOÇÃO: {emocao.upper()}"
     )
     print("=" * 60)
+
+    print()
+    print(
+        f"Serão feitas {faltam} gravações."
+    )
 
     print()
     print(
@@ -294,239 +349,332 @@ def gravar_emocao(emocao):
     )
 
     print(
-        "• Fale naturalmente."
+        "• Mantenha distância semelhante do microfone."
     )
 
     print(
-        "• Mantenha uma distância semelhante do microfone."
+        "• Grave em ambiente silencioso."
     )
 
     print(
-        "• Não deixe música ou outras pessoas falando ao fundo."
+        "• Não deixe outras pessoas falando ao fundo."
     )
 
     print(
-        "• Tente representar a emoção indicada."
-    )
-
-    print(
-        "• Não altere a frase durante a gravação."
+        "• Procure representar vocalmente a emoção."
     )
 
     print()
 
-    input(
-        "Pressione ENTER quando estiver pronto..."
+    for _ in range(faltam):
+
+        frase = random.choice(
+            FRASES
+        )
+
+        print()
+        print("-" * 60)
+
+        print(
+            f"Gravação "
+            f"{numero:03d}/{GRAVACOES_POR_PESSOA_EMOCAO}"
+        )
+
+        print()
+        print(
+            f'FRASE: "{frase}"'
+        )
+
+        print()
+
+        input(
+            "Pressione ENTER para gravar..."
+        )
+
+        print()
+        print("Prepare-se...")
+
+        for contagem in range(
+            3,
+            0,
+            -1
+        ):
+
+            print(contagem)
+
+            time.sleep(1)
+
+        print()
+        print(">>> GRAVANDO <<<")
+
+        dados, tamanho_amostra = gravar_audio()
+
+        if dados is None:
+
+            print()
+            print(
+                "A gravação foi interrompida."
+            )
+
+            return
+
+        nome_arquivo = (
+            f"{pessoa}_{emocao}_{numero:03d}.wav"
+        )
+
+        caminho = os.path.join(
+            PASTA_DATASET,
+            emocao,
+            nome_arquivo
+        )
+
+        salvar_audio(
+            dados,
+            tamanho_amostra,
+            caminho
+        )
+
+        print()
+        print(
+            "✓ Áudio salvo:"
+        )
+
+        print(caminho)
+
+        numero += 1
+
+        time.sleep(1)
+
+    print()
+    print("=" * 60)
+    print(
+        f"✓ {pessoa.upper()} - "
+        f"{emocao.upper()} FINALIZADO"
+    )
+    print("=" * 60)
+
+
+# ============================================================
+# PROGRESSO
+# ============================================================
+
+def mostrar_progresso():
+
+    print()
+    print("=" * 70)
+    print("PROGRESSO DO DATASET DE EMOÇÕES")
+    print("=" * 70)
+
+    total = 0
+
+    for pessoa in PESSOAS:
+
+        print()
+        print(
+            pessoa.upper()
+        )
+
+        for emocao in EMOCOES:
+
+            quantidade = contar_gravacoes(
+                pessoa,
+                emocao
+            )
+
+            total += quantidade
+
+            print(
+                f"  {emocao:<10} "
+                f"{quantidade}/"
+                f"{GRAVACOES_POR_PESSOA_EMOCAO}"
+            )
+
+    print()
+    print("-" * 70)
+
+    print(
+        f"Total de gravações: {total}/120"
     )
 
-    audio = pyaudio.PyAudio()
+    print("=" * 70)
 
-    stream = audio.open(
-        format=FORMATO,
-        channels=CANAIS,
-        rate=TAXA_AMOSTRAGEM,
-        input=True,
-        frames_per_buffer=TAMANHO_BUFFER
-    )
 
-    try:
+# ============================================================
+# MENU
+# ============================================================
 
-        while True:
+def menu():
 
-            if numero > (
-                quantidade_atual
-                + NUM_GRAVACOES_POR_EMOCAO
+    while True:
+
+        print()
+        print("=" * 60)
+        print("       DATASET DE EMOÇÕES")
+        print("       SALA DE REUNIÃO INTELIGENTE")
+        print("=" * 60)
+
+        print()
+        print("Participantes:")
+
+        for indice, pessoa in enumerate(
+            PESSOAS,
+            start=1
+        ):
+
+            print(
+                f"{indice} - {pessoa}"
+            )
+
+        print()
+        print("6 - Mostrar progresso")
+        print("0 - Encerrar")
+
+        print()
+
+        opcao = input(
+            "Escolha uma opção: "
+        ).strip()
+
+        if opcao == "0":
+
+            print()
+            print(
+                "Programa encerrado."
+            )
+
+            break
+
+        elif opcao == "6":
+
+            mostrar_progresso()
+
+        elif opcao in [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+        ]:
+
+            pessoa = PESSOAS[
+                int(opcao) - 1
+            ]
+
+            print()
+            print(
+                f"Participante selecionado: "
+                f"{pessoa}"
+            )
+
+            print()
+            print("Escolha a emoção:")
+
+            for indice, emocao in enumerate(
+                EMOCOES,
+                start=1
             ):
 
-                break
-
-            frase = random.choice(
-                FRASES
-            )
-
-            print()
-            print("-" * 60)
-
-            print(
-                f"Gravação {numero:03d}"
-            )
-
-            print(
-                f"Emoção: {emocao.upper()}"
-            )
-
-            print()
-            print(
-                f'FRASE: "{frase}"'
-            )
-
-            print()
-
-            input(
-                "Pressione ENTER para gravar..."
-            )
-
-            print()
-            print(
-                "GRAVANDO..."
-            )
-
-            dados = gravar_audio(
-                audio,
-                stream
-            )
-
-            nome_arquivo = (
-                f"{emocao}_{numero:03d}.wav"
-            )
-
-            caminho = os.path.join(
-                PASTA_DATASET,
-                emocao,
-                nome_arquivo
-            )
-
-            salvar_audio(
-                dados,
-                caminho
-            )
-
-            print(
-                f"Salvo: {caminho}"
-            )
-
-            numero += 1
-
-            quantidade_atual += 1
-
-            print()
-
-            if quantidade_atual >= (
-                NUM_GRAVACOES_POR_EMOCAO
-            ):
-
-                print(
-                    f"Meta de {NUM_GRAVACOES_POR_EMOCAO} "
-                    f"gravações atingida."
+                quantidade = contar_gravacoes(
+                    pessoa,
+                    emocao
                 )
 
-                break
+                print(
+                    f"{indice} - "
+                    f"{emocao} "
+                    f"({quantidade}/"
+                    f"{GRAVACOES_POR_PESSOA_EMOCAO})"
+                )
 
-            resposta = input(
-                "Deseja continuar gravando essa emoção? "
-                "(s/n): "
-            ).strip().lower()
+            print("0 - Voltar")
 
-            if resposta != "s":
+            print()
 
-                break
+            opcao_emocao = input(
+                "Escolha uma emoção: "
+            ).strip()
 
-    finally:
+            if opcao_emocao == "0":
+                continue
 
-        stream.stop_stream()
-        stream.close()
+            if opcao_emocao in [
+                "1",
+                "2",
+                "3",
+                "4"
+            ]:
 
-        audio.terminate()
+                emocao = EMOCOES[
+                    int(opcao_emocao) - 1
+                ]
+
+                gravar_emocao(
+                    pessoa,
+                    emocao
+                )
+
+            else:
+
+                print()
+                print(
+                    "Opção de emoção inválida."
+                )
+
+        else:
+
+            print()
+            print(
+                "Opção inválida."
+            )
+
+
+# ============================================================
+# PROGRAMA PRINCIPAL
+# ============================================================
+
+if __name__ == "__main__":
 
     print()
+    print("=" * 60)
     print(
-        f"Gravações de '{emocao}' finalizadas."
+        "SISTEMA DE GRAVAÇÃO DO DATASET DE EMOÇÕES"
     )
-
-
-# ============================================================
-# MENU PRINCIPAL
-# ============================================================
-
-while True:
-
-    print()
-    print("=" * 60)
-    print("       DATASET DE EMOÇÕES")
-    print("       SALA DE REUNIÃO INTELIGENTE")
     print("=" * 60)
 
     print()
-
-    for indice, emocao in enumerate(
-        EMOCOES,
-        start=1
-    ):
-
-        quantidade = contar_gravacoes(
-            emocao
-        )
-
-        print(
-            f"{indice} - {emocao:<10} "
-            f"({quantidade}/{NUM_GRAVACOES_POR_EMOCAO})"
-        )
-
-    print()
-    print("5 - Mostrar progresso")
-    print("0 - Sair")
-
-    print()
-
-    opcao = input(
-        "Escolha uma opção: "
-    ).strip()
-
-    if opcao in ["1", "2", "3", "4"]:
-
-        indice = int(opcao) - 1
-
-        emocao_escolhida = EMOCOES[
-            indice
-        ]
-
-        gravar_emocao(
-            emocao_escolhida
-        )
-
-    elif opcao == "5":
-
-        mostrar_progresso()
-
-    elif opcao == "0":
-
-        print()
-        print(
-            "Encerrando programa..."
-        )
-
-        break
-
-    else:
-
-        print()
-        print(
-            "Opção inválida."
-        )
-
-
-# ============================================================
-# RESUMO FINAL
-# ============================================================
-
-print()
-mostrar_progresso()
-
-print(
-    "Dataset salvo em:"
-)
-
-print(
-    os.path.abspath(
-        PASTA_DATASET
+    print("Configurações:")
+    print(
+        f"- Taxa de amostragem: "
+        f"{TAXA_AMOSTRAGEM} Hz"
     )
-)
 
-print()
-print(
-    "Quando todas as emoções tiverem pelo menos"
-)
+    print(
+        f"- Canais: {CANAIS} (mono)"
+    )
 
-print(
-    "25 gravações, o dataset atende ao requisito mínimo."
-)
+    print(
+        f"- Duração: "
+        f"{DURACAO_GRAVACAO} segundos"
+    )
+
+    print(
+        "- 5 participantes"
+    )
+
+    print(
+        "- 4 emoções"
+    )
+
+    print(
+        "- 6 gravações por pessoa/emoção"
+    )
+
+    print(
+        "- 120 gravações no total"
+    )
+
+    print()
+
+    criar_pastas()
+
+    menu()
