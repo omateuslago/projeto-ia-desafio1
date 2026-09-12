@@ -35,6 +35,8 @@ PESSOAS = [
     "gabriel",
     "joao",
     "mateus",
+    "matheus",
+    "erisson",
     "caio",
     "arthur"
 ]
