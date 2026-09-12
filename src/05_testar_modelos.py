@@ -19,6 +19,8 @@ PASTA_MODELOS = os.path.join(
     "modelos"
 )
 
+LIMITE_CONFIANCA_PESSOA = 0.45
+
 ARQUIVO_MODELO_PESSOAS = os.path.join(
     PASTA_MODELOS,
     "modelo_pessoas.pkl"
@@ -178,6 +180,9 @@ def classificar_audio(
         modelo_emocoes,
         entrada
     )
+
+    if confianca_pessoa < LIMITE_CONFIANCA_PESSOA:
+        pessoa = "desconhecido"
 
     return (
         pessoa,

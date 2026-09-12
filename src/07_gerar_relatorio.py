@@ -13,16 +13,25 @@ PASTA_RAIZ = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))
 )
 
-ARQUIVO_CSV = os.path.join(
+PASTA_REUNIAO = os.path.join(
     PASTA_RAIZ,
     "reunioes",
-    "resultado_reuniao.csv"
+    "reuniao_01"
 )
 
-PASTA_RELATORIO = os.path.join(
-    PASTA_RAIZ,
-    "reunioes",
-    "relatorio"
+ARQUIVO_CSV = os.path.join(
+    PASTA_REUNIAO,
+    "registros.csv"
+)
+
+PASTA_GRAFICOS = os.path.join(
+    PASTA_REUNIAO,
+    "graficos"
+)
+
+ARQUIVO_RELATORIO_TXT = os.path.join(
+    PASTA_REUNIAO,
+    "relatorio.txt"
 )
 
 LIMITE_CONFIANCA_PESSOA = 0.45
@@ -33,7 +42,7 @@ LIMITE_CONFIANCA_EMOCAO = 0.45
 # PREPARAÇÃO
 # ============================================================
 
-os.makedirs(PASTA_RELATORIO, exist_ok=True)
+os.makedirs(PASTA_GRAFICOS, exist_ok=True)
 
 
 if not os.path.exists(ARQUIVO_CSV):
@@ -273,7 +282,7 @@ if not tempo_por_pessoa.empty:
     plt.tight_layout()
 
     caminho_grafico = os.path.join(
-        PASTA_RELATORIO,
+        PASTA_GRAFICOS,
         "tempo_fala.png"
     )
 
@@ -319,7 +328,7 @@ if not tabela_emocoes_pessoa.empty:
     plt.tight_layout()
 
     caminho_grafico = os.path.join(
-        PASTA_RELATORIO,
+        PASTA_GRAFICOS,
         "emocoes_por_pessoa.png"
     )
 
@@ -358,7 +367,7 @@ if not contagem_emocoes.empty:
     plt.tight_layout()
 
     caminho_grafico = os.path.join(
-        PASTA_RELATORIO,
+        PASTA_GRAFICOS,
         "emocoes_geral.png"
     )
 
@@ -403,7 +412,7 @@ df_baixa_confianca = df[
 # ============================================================
 
 arquivo_baixa_confianca = os.path.join(
-    PASTA_RELATORIO,
+    PASTA_GRAFICOS,
     "baixa_confianca.csv"
 )
 
@@ -555,7 +564,7 @@ else:
 # ============================================================
 
 caminho_html = os.path.join(
-    PASTA_RELATORIO,
+    PASTA_REUNIAO,
     "relatorio_reuniao.html"
 )
 
@@ -674,7 +683,7 @@ Relatório automático da análise da reunião.
 
 <h2>3. Tempo estimado de fala</h2>
 
-<img src="tempo_fala.png">
+<img src="graficos/tempo_fala.png">
 
 
 <h2>4. Emoções estimadas por participante</h2>
@@ -691,12 +700,12 @@ real da pessoa.
 
 <h2>5. Distribuição das emoções estimadas</h2>
 
-<img src="emocoes_por_pessoa.png">
+<img src="graficos/emocoes_por_pessoa.png">
 
 
 <h2>6. Distribuição geral das emoções</h2>
 
-<img src="emocoes_geral.png">
+<img src="graficos/emocoes_geral.png">
 
 
 <h2>7. Trechos com baixa confiança</h2>
@@ -740,7 +749,7 @@ o treinamento e das condições de gravação.
 
 <p>
 Os resultados completos podem ser consultados no arquivo:
-<strong>resultado_reuniao.csv</strong>
+<strong>registros.csv</strong>
 </p>
 
 </body>
@@ -757,6 +766,26 @@ with open(
 
     arquivo.write(
         html_relatorio
+    )
+
+
+with open(
+    ARQUIVO_RELATORIO_TXT,
+    "w",
+    encoding="utf-8"
+) as arquivo:
+
+    arquivo.write(
+        "RELATORIO DA REUNIAO\n"
+        "=====================\n\n"
+        f"Duracao aproximada: {duracao_total / 60:.2f} minutos\n"
+        f"Trechos analisados: {quantidade_trechos}\n"
+        f"Participantes identificados: "
+        f"{len(participantes_registrados)}\n"
+        f"Emocao mais frequente: "
+        f"{emocao_mais_frequente}\n"
+        f"Trechos nessa classificacao: "
+        f"{quantidade_emocao_frequente}\n"
     )
 
 
@@ -778,7 +807,7 @@ print(
 print()
 print(
     f"Gráficos e tabelas:"
-    f"\n{PASTA_RELATORIO}"
+    f"\n{PASTA_GRAFICOS}"
 )
 
 print()

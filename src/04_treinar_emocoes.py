@@ -40,6 +40,7 @@ PASTA_RESULTADOS = os.path.join(
 NOME_MODELO = "modelo_emocoes.pkl"
 
 TAMANHO_MINIMO_DATASET = 25
+QUANTIDADE_MINIMA_EMOCOES = 4
 
 RANDOM_STATE = 42
 
@@ -101,10 +102,11 @@ def carregar_dataset():
         ]
     )
 
-    if len(emocoes) < 2:
+    if len(emocoes) < QUANTIDADE_MINIMA_EMOCOES:
 
         raise ValueError(
-            "É necessário possuir pelo menos duas emoções "
+            f"É necessário possuir pelo menos "
+            f"{QUANTIDADE_MINIMA_EMOCOES} emoções "
             "para realizar o treinamento."
         )
 
@@ -138,9 +140,11 @@ def carregar_dataset():
 
         if len(arquivos) < TAMANHO_MINIMO_DATASET:
 
-            print(
-                f"  AVISO: menos de "
-                f"{TAMANHO_MINIMO_DATASET} arquivos."
+            raise ValueError(
+                f"A emoção '{emocao}' possui apenas "
+                f"{len(arquivos)} arquivos. "
+                f"São necessários pelo menos "
+                f"{TAMANHO_MINIMO_DATASET}."
             )
 
         for arquivo in arquivos:

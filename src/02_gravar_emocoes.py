@@ -55,6 +55,10 @@ EMOCOES = [
     "irritado"
 ]
 
+TOTAL_GRAVACOES = (
+    len(PESSOAS) * len(EMOCOES) * GRAVACOES_POR_PESSOA_EMOCAO
+)
+
 
 # ============================================================
 # FRASES
@@ -502,7 +506,7 @@ def mostrar_progresso():
     print("-" * 70)
 
     print(
-        f"Total de gravações: {total}/120"
+        f"Total de gravações: {total}/{TOTAL_GRAVACOES}"
     )
 
     print("=" * 70)
@@ -535,7 +539,7 @@ def menu():
             )
 
         print()
-        print("6 - Mostrar progresso")
+        print(f"{len(PESSOAS) + 1} - Mostrar progresso")
         print("0 - Encerrar")
 
         print()
@@ -553,17 +557,11 @@ def menu():
 
             break
 
-        elif opcao == "6":
+        elif opcao == str(len(PESSOAS) + 1):
 
             mostrar_progresso()
 
-        elif opcao in [
-            "1",
-            "2",
-            "3",
-            "4",
-            "5"
-        ]:
+        elif opcao.isdigit() and 1 <= int(opcao) <= len(PESSOAS):
 
             pessoa = PESSOAS[
                 int(opcao) - 1
@@ -667,7 +665,7 @@ if __name__ == "__main__":
     )
 
     print(
-        "- 5 participantes"
+        f"- {len(PESSOAS)} participantes"
     )
 
     print(
@@ -679,7 +677,7 @@ if __name__ == "__main__":
     )
 
     print(
-        "- 120 gravações no total"
+        f"- {TOTAL_GRAVACOES} gravações no total"
     )
 
     print()

@@ -32,7 +32,7 @@ Existem dois modelos independentes:
 - **Modelo de pessoas:** identifica o participante pela voz.
 - **Modelo de emoções:** classifica a voz como `alegre`, `neutro`, `triste` ou `irritado`.
 
-Os participantes cadastrados atualmente no código são `gabriel`, `joao`, `mateus`, `caio` e `arthur`.
+Os participantes cadastrados atualmente no código são `joao`, `gabriel`, `mateus`, `matheus`, `erisson`, `caio` e `arthur`.
 
 ## Tecnologias utilizadas
 
@@ -58,13 +58,15 @@ Os participantes cadastrados atualmente no código são `gabriel`, `joao`, `mate
 │   ├── 06_analisar_reuniao.py
 │   ├── 07_gerar_relatorio.py
 │   └── features.py
-├── backend/
-│   └── teste
-├── README.txt
-└── README.md
+├── dataset_pessoas/
+├── dataset_emocoes/
+├── modelos/
+├── resultados/
+├── reunioes/
+└── readme.md
 ```
 
-O arquivo `backend/teste` é apenas um marcador sem implementação funcional, e o `README.txt` está vazio. Toda a lógica atual está em `src/`.
+Todos os scripts ficam diretamente em `src/`, e os diretórios de dados e resultados são criados na raiz do repositório.
 
 ### Responsabilidade de cada arquivo
 
@@ -117,7 +119,7 @@ Para a emoção, o sistema sempre mantém a classe mais provável no CSV. O limi
 
 ## Instalação
 
-Execute os comandos a partir da raiz deste repositório. Os caminhos usados pelos scripts são relativos ao diretório atual.
+Execute os comandos a partir da raiz deste repositório. Os scripts calculam os caminhos de saída a partir da raiz do projeto.
 
 ### 1. Pré-requisitos do sistema
 
@@ -172,7 +174,7 @@ dataset_pessoas/
 python src/02_gravar_emocoes.py
 ```
 
-Cada uma das cinco pessoas grava seis exemplos para cada uma das quatro emoções. A meta total é de **120 gravações**.
+Cada uma das sete pessoas grava seis exemplos para cada uma das quatro emoções. A meta total é de **168 gravações**.
 
 ```text
 dataset_emocoes/
@@ -234,10 +236,12 @@ Pressione `Enter` para iniciar e `Ctrl+C` para encerrar com segurança. O proces
 
 ```text
 reunioes/
-├── trecho_0001.wav
-├── trecho_0002.wav
-├── ...
-└── resultado_reuniao.csv
+└── reuniao_01/
+        ├── blocos_audio/
+        │   ├── bloco_001.wav
+        │   ├── bloco_002.wav
+        │   └── ...
+        └── registros.csv
 ```
 
 Cada linha do CSV possui:
@@ -258,15 +262,17 @@ Cada linha do CSV possui:
 python src/07_gerar_relatorio.py
 ```
 
-Saídas geradas em `reunioes/relatorio/`:
+Saídas geradas em `reunioes/reuniao_01/`:
 
 ```text
-reunioes/relatorio/
+reunioes/reuniao_01/
+├── relatorio.txt
 ├── relatorio_reuniao.html
-├── tempo_fala.png
-├── emocoes_por_pessoa.png
-├── emocoes_geral.png
-└── baixa_confianca.csv
+└── graficos/
+        ├── tempo_fala.png
+        ├── emocoes_por_pessoa.png
+        ├── emocoes_geral.png
+        └── baixa_confianca.csv
 ```
 
 Abra `relatorio_reuniao.html` em um navegador para consultar o resultado consolidado.
@@ -293,7 +299,7 @@ Depois de executar todo o pipeline, a raiz do projeto tende a ficar assim:
 - **O tempo de fala é aproximado.** Ele corresponde à soma dos blocos classificados, não ao tempo exato de fala detectada.
 - **Os modelos reconhecem apenas os padrões vistos no treinamento.** Vozes, microfones e ambientes diferentes podem reduzir muito a acurácia.
 - **A confiança é a probabilidade fornecida pela Random Forest**, não uma garantia de que a previsão esteja correta.
-- **O CSV não é limpo ao iniciar uma nova reunião.** Se `reunioes/resultado_reuniao.csv` já existir, novos trechos serão acrescentados. Para analisar reuniões separadamente, arquive ou renomeie a pasta `reunioes` antes de uma nova execução.
+- **O CSV não é limpo ao iniciar uma nova reunião.** Se `reunioes/reuniao_01/registros.csv` já existir, novos trechos serão acrescentados. Para analisar reuniões separadamente, altere `NOME_REUNIAO` no script de análise e o caminho correspondente no gerador de relatório.
 - **Os WAVs usam nomes sequenciais a partir de 1 em toda execução.** Uma nova análise na mesma pasta pode sobrescrever trechos antigos, mesmo que o CSV continue acumulando linhas.
 - **Não há interface gráfica ou servidor web.** A execução é feita pelo terminal e o relatório é um HTML estático.
 - **Não há datasets ou modelos incluídos no repositório atual.** É necessário gravar e treinar antes de testar ou analisar reuniões.

@@ -30,14 +30,23 @@ PASTA_REUNIOES = os.path.join(
     PASTA_RAIZ,
     "reunioes"
 )
+NOME_REUNIAO = "reuniao_01"
+PASTA_REUNIAO = os.path.join(
+    PASTA_REUNIOES,
+    NOME_REUNIAO
+)
+PASTA_BLOCOS_AUDIO = os.path.join(
+    PASTA_REUNIAO,
+    "blocos_audio"
+)
 PASTA_MODELOS = os.path.join(
     PASTA_RAIZ,
     "modelos"
 )
 
 ARQUIVO_CSV = os.path.join(
-    PASTA_REUNIOES,
-    "resultado_reuniao.csv"
+    PASTA_REUNIAO,
+    "registros.csv"
 )
 
 MODELO_PESSOAS = os.path.join(
@@ -55,7 +64,7 @@ MODELO_EMOCOES = os.path.join(
 # PREPARAÇÃO
 # ============================================================
 
-os.makedirs(PASTA_REUNIOES, exist_ok=True)
+os.makedirs(PASTA_BLOCOS_AUDIO, exist_ok=True)
 
 if not os.path.exists(MODELO_PESSOAS):
     print("ERRO: modelo de pessoas não encontrado.")
@@ -121,10 +130,10 @@ def salvar_audio(dados, numero_bloco):
     Salva o bloco de áudio como WAV.
     """
 
-    nome_arquivo = f"trecho_{numero_bloco:04d}.wav"
+    nome_arquivo = f"bloco_{numero_bloco:03d}.wav"
 
     caminho = os.path.join(
-        PASTA_REUNIOES,
+        PASTA_BLOCOS_AUDIO,
         nome_arquivo
     )
 
@@ -418,7 +427,7 @@ finally:
 
     print(
         f"Áudios salvos em:"
-        f"\n{PASTA_REUNIOES}"
+        f"\n{PASTA_BLOCOS_AUDIO}"
     )
 
     print()

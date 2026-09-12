@@ -409,7 +409,7 @@ def menu():
             )
 
         print()
-        print("6 - Mostrar progresso")
+        print(f"{len(PESSOAS) + 1} - Mostrar progresso")
         print("0 - Encerrar")
         print()
 
@@ -424,17 +424,11 @@ def menu():
 
             break
 
-        elif opcao == "6":
+        elif opcao == str(len(PESSOAS) + 1):
 
             mostrar_progresso()
 
-        elif opcao in [
-            "1",
-            "2",
-            "3",
-            "4",
-            "5"
-        ]:
+        elif opcao.isdigit() and 1 <= int(opcao) <= len(PESSOAS):
 
             indice = int(opcao) - 1
 

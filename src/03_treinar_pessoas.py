@@ -40,6 +40,7 @@ PASTA_RESULTADOS = os.path.join(
 NOME_MODELO = "modelo_pessoas.pkl"
 
 TAMANHO_MINIMO_DATASET = 20
+QUANTIDADE_MINIMA_PESSOAS = 5
 
 RANDOM_STATE = 42
 
@@ -105,10 +106,11 @@ def carregar_dataset():
         ]
     )
 
-    if len(pessoas) < 2:
+    if len(pessoas) < QUANTIDADE_MINIMA_PESSOAS:
 
         raise ValueError(
-            "É necessário ter pelo menos duas pessoas "
+            f"É necessário ter pelo menos "
+            f"{QUANTIDADE_MINIMA_PESSOAS} pessoas "
             "no dataset para realizar o treinamento."
         )
 
@@ -142,9 +144,11 @@ def carregar_dataset():
 
         if len(arquivos) < TAMANHO_MINIMO_DATASET:
 
-            print(
-                f"  AVISO: menos de "
-                f"{TAMANHO_MINIMO_DATASET} arquivos."
+            raise ValueError(
+                f"A pessoa '{pessoa}' possui apenas "
+                f"{len(arquivos)} arquivos. "
+                f"São necessários pelo menos "
+                f"{TAMANHO_MINIMO_DATASET}."
             )
 
         for arquivo in arquivos:
