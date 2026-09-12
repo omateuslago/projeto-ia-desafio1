@@ -9,6 +9,10 @@ import pyaudio
 # CONFIGURAÇÕES
 # ============================================================
 
+PASTA_RAIZ = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)
+
 TAXA_AMOSTRAGEM = 16000
 CANAIS = 1
 FORMATO = pyaudio.paInt16
@@ -17,7 +21,10 @@ TAMANHO_BUFFER = 1024
 DURACAO_GRAVACAO = 4
 GRAVACOES_POR_PESSOA = 30
 
-PASTA_DATASET = "dataset_pessoas"
+PASTA_DATASET = os.path.join(
+    PASTA_RAIZ,
+    "dataset_pessoas"
+)
 
 
 # ============================================================

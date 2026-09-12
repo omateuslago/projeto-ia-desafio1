@@ -10,6 +10,10 @@ import pyaudio
 # CONFIGURAÇÕES
 # ============================================================
 
+PASTA_RAIZ = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)
+
 TAXA_AMOSTRAGEM = 16000
 CANAIS = 1
 FORMATO = pyaudio.paInt16
@@ -19,7 +23,10 @@ DURACAO_GRAVACAO = 4
 
 GRAVACOES_POR_PESSOA_EMOCAO = 6
 
-PASTA_DATASET = "dataset_emocoes"
+PASTA_DATASET = os.path.join(
+    PASTA_RAIZ,
+    "dataset_emocoes"
+)
 
 
 # ============================================================

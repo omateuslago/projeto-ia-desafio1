@@ -10,7 +10,14 @@ from features import extrair_caracteristicas
 # CONFIGURAÇÕES
 # ============================================================
 
-PASTA_MODELOS = "modelos"
+PASTA_RAIZ = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)
+
+PASTA_MODELOS = os.path.join(
+    PASTA_RAIZ,
+    "modelos"
+)
 
 ARQUIVO_MODELO_PESSOAS = os.path.join(
     PASTA_MODELOS,

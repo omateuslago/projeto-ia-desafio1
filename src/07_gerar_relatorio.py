@@ -9,9 +9,21 @@ import matplotlib.pyplot as plt
 # CONFIGURAÇÕES
 # ============================================================
 
-ARQUIVO_CSV = "reunioes/resultado_reuniao.csv"
+PASTA_RAIZ = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)
 
-PASTA_RELATORIO = "reunioes/relatorio"
+ARQUIVO_CSV = os.path.join(
+    PASTA_RAIZ,
+    "reunioes",
+    "resultado_reuniao.csv"
+)
+
+PASTA_RELATORIO = os.path.join(
+    PASTA_RAIZ,
+    "reunioes",
+    "relatorio"
+)
 
 LIMITE_CONFIANCA_PESSOA = 0.45
 LIMITE_CONFIANCA_EMOCAO = 0.45

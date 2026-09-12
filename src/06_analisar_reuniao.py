@@ -15,6 +15,10 @@ from features import extrair_caracteristicas
 # CONFIGURAÇÕES
 # ============================================================
 
+PASTA_RAIZ = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)
+
 TAXA_AMOSTRAGEM = 16000
 CANAIS = 1
 FORMATO = pyaudio.paInt16
@@ -22,8 +26,14 @@ DURACAO_BLOCO = 4
 
 LIMITE_CONFIANCA_PESSOA = 0.45
 
-PASTA_REUNIOES = "reunioes"
-PASTA_MODELOS = "modelos"
+PASTA_REUNIOES = os.path.join(
+    PASTA_RAIZ,
+    "reunioes"
+)
+PASTA_MODELOS = os.path.join(
+    PASTA_RAIZ,
+    "modelos"
+)
 
 ARQUIVO_CSV = os.path.join(
     PASTA_REUNIOES,

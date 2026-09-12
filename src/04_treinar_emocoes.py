@@ -20,9 +20,22 @@ from features import extrair_caracteristicas
 # CONFIGURAÇÕES
 # ============================================================
 
-PASTA_DATASET = "dataset_emocoes"
-PASTA_MODELOS = "modelos"
-PASTA_RESULTADOS = "resultados"
+PASTA_RAIZ = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)
+
+PASTA_DATASET = os.path.join(
+    PASTA_RAIZ,
+    "dataset_emocoes"
+)
+PASTA_MODELOS = os.path.join(
+    PASTA_RAIZ,
+    "modelos"
+)
+PASTA_RESULTADOS = os.path.join(
+    PASTA_RAIZ,
+    "resultados"
+)
 
 NOME_MODELO = "modelo_emocoes.pkl"
 
