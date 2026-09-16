@@ -502,6 +502,45 @@ def salvar_metadados(
     print("✓ Metadados salvos:")
     print(caminho)
 
+    caminho_geral = os.path.join(
+        PASTA_MODELOS,
+        "metadados.json"
+    )
+
+    metadados_gerais = {}
+
+    if os.path.exists(caminho_geral):
+
+        try:
+
+            with open(
+                caminho_geral,
+                "r",
+                encoding="utf-8"
+            ) as arquivo:
+
+                metadados_gerais = json.load(arquivo)
+
+        except (OSError, ValueError, TypeError):
+            metadados_gerais = {}
+
+    metadados_gerais["emocoes"] = metadados
+
+    with open(
+        caminho_geral,
+        "w",
+        encoding="utf-8"
+    ) as arquivo:
+
+        json.dump(
+            metadados_gerais,
+            arquivo,
+            indent=4,
+            ensure_ascii=False
+        )
+
+    print(caminho_geral)
+
 
 # ============================================================
 # FUNÇÃO PRINCIPAL
@@ -625,6 +664,10 @@ def main():
 
     print(
         f"- {os.path.join(PASTA_MODELOS, 'metadados_emocoes.json')}"
+    )
+
+    print(
+        f"- {os.path.join(PASTA_MODELOS, 'metadados.json')}"
     )
 
     print(

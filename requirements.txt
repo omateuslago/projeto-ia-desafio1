@@ -1,0 +1,7 @@
+joblib
+librosa
+matplotlib
+numpy
+pandas
+PyAudio
+scikit-learn

@@ -63,6 +63,8 @@ Os participantes cadastrados atualmente no código são `joao`, `gabriel`, `mate
 ├── modelos/
 ├── resultados/
 ├── reunioes/
+├── requirements.txt
+├── README.txt
 └── readme.md
 ```
 
@@ -140,10 +142,10 @@ sudo apt install python3-venv portaudio19-dev
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install numpy librosa pyaudio scikit-learn joblib matplotlib pandas
+python -m pip install -r requirements.txt
 ```
 
-> O repositório ainda não possui um arquivo de dependências com versões fixadas. Por isso, uma instalação futura pode receber versões diferentes das bibliotecas.
+O arquivo `requirements.txt` lista as bibliotecas necessárias. As versões não estão fixadas, permitindo a instalação das versões compatíveis com o Python utilizado pelo grupo.
 
 ## Como executar
 
@@ -155,7 +157,7 @@ As etapas devem ser realizadas na ordem abaixo.
 python src/01_gravar_pessoas.py
 ```
 
-O menu permite escolher um participante e retomar gravações incompletas. A meta configurada é de **30 arquivos por pessoa**, totalizando **150 gravações**.
+O menu permite escolher um participante e retomar gravações incompletas. A meta configurada é de **30 arquivos por pessoa**, totalizando **210 gravações** para os sete participantes cadastrados.
 
 Estrutura criada:
 
@@ -163,9 +165,11 @@ Estrutura criada:
 dataset_pessoas/
 ├── arthur/
 ├── caio/
+├── erisson/
 ├── gabriel/
 ├── joao/
-└── mateus/
+├── mateus/
+└── matheus/
 ```
 
 ### Etapa 2 — Gravar o dataset de emoções
@@ -175,6 +179,8 @@ python src/02_gravar_emocoes.py
 ```
 
 Cada uma das sete pessoas grava seis exemplos para cada uma das quatro emoções. A meta total é de **168 gravações**.
+
+O número da gravação define a frase. Assim, cada participante usa a mesma frase na rodada `001` de `alegre`, `neutro`, `triste` e `irritado`, conforme a metodologia proposta nos slides.
 
 ```text
 dataset_emocoes/
@@ -197,10 +203,11 @@ Arquivos gerados:
 ```text
 modelos/modelo_pessoas.pkl
 modelos/metadados_pessoas.json
+modelos/metadados.json
 resultados/matriz_confusao_pessoas.png
 ```
 
-O script recomenda pelo menos 20 gravações por pessoa e exige ao menos duas pessoas, com duas amostras por classe.
+O script exige pelo menos cinco pessoas e 20 gravações válidas por pessoa. Como sete participantes estão cadastrados, todos precisam completar o mínimo antes do treinamento.
 
 ### Etapa 4 — Treinar o modelo de emoções
 
@@ -213,10 +220,11 @@ Arquivos gerados:
 ```text
 modelos/modelo_emocoes.pkl
 modelos/metadados_emocoes.json
+modelos/metadados.json
 resultados/matriz_confusao_emocoes.png
 ```
 
-O script recomenda pelo menos 25 gravações por emoção e exige ao menos duas emoções, com duas amostras por classe.
+O script exige as quatro emoções e pelo menos 25 gravações válidas por emoção.
 
 ### Etapa 5 — Testar os dois modelos
 
@@ -232,7 +240,7 @@ O comando mostra a pessoa e a emoção previstas, acompanhadas da probabilidade 
 python src/06_analisar_reuniao.py
 ```
 
-Pressione `Enter` para iniciar e `Ctrl+C` para encerrar com segurança. O processo cria:
+Pressione `Enter` para iniciar e `Ctrl+C` para encerrar com segurança. Cada execução cria automaticamente a próxima pasta disponível (`reuniao_01`, `reuniao_02` e assim por diante), sem sobrescrever reuniões anteriores:
 
 ```text
 reunioes/
@@ -260,6 +268,12 @@ Cada linha do CSV possui:
 
 ```bash
 python src/07_gerar_relatorio.py
+```
+
+Sem argumento, o programa usa a reunião numerada mais recente. Para escolher uma reunião específica:
+
+```bash
+python src/07_gerar_relatorio.py reuniao_01
 ```
 
 Saídas geradas em `reunioes/reuniao_01/`:
@@ -299,11 +313,10 @@ Depois de executar todo o pipeline, a raiz do projeto tende a ficar assim:
 - **O tempo de fala é aproximado.** Ele corresponde à soma dos blocos classificados, não ao tempo exato de fala detectada.
 - **Os modelos reconhecem apenas os padrões vistos no treinamento.** Vozes, microfones e ambientes diferentes podem reduzir muito a acurácia.
 - **A confiança é a probabilidade fornecida pela Random Forest**, não uma garantia de que a previsão esteja correta.
-- **O CSV não é limpo ao iniciar uma nova reunião.** Se `reunioes/reuniao_01/registros.csv` já existir, novos trechos serão acrescentados. Para analisar reuniões separadamente, altere `NOME_REUNIAO` no script de análise e o caminho correspondente no gerador de relatório.
-- **Os WAVs usam nomes sequenciais a partir de 1 em toda execução.** Uma nova análise na mesma pasta pode sobrescrever trechos antigos, mesmo que o CSV continue acumulando linhas.
+- **Cada execução cria uma reunião numerada.** Os WAVs e o CSV permanecem separados nas pastas `reuniao_01`, `reuniao_02` e seguintes.
 - **Não há interface gráfica ou servidor web.** A execução é feita pelo terminal e o relatório é um HTML estático.
 - **Não há datasets ou modelos incluídos no repositório atual.** É necessário gravar e treinar antes de testar ou analisar reuniões.
-- **Não há testes automatizados nem dependências fixadas.** O funcionamento foi validado estruturalmente, mas a captura real depende do microfone e do ambiente local.
+- **Não há testes automatizados.** O funcionamento foi validado estruturalmente, mas a captura real depende do microfone e do ambiente local.
 
 ## Privacidade e uso responsável
 

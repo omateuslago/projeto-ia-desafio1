@@ -1,5 +1,8 @@
 import os
 import html
+import json
+import re
+import sys
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -13,11 +16,84 @@ PASTA_RAIZ = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))
 )
 
-PASTA_REUNIAO = os.path.join(
+PASTA_REUNIOES = os.path.join(
     PASTA_RAIZ,
-    "reunioes",
-    "reuniao_01"
+    "reunioes"
 )
+
+ARQUIVO_METADADOS_PESSOAS = os.path.join(
+    PASTA_RAIZ,
+    "modelos",
+    "metadados_pessoas.json"
+)
+
+
+def obter_pasta_reuniao():
+    """
+    Usa a reunião informada na linha de comando ou, quando
+    omitida, seleciona a reunião numerada mais recente.
+    """
+
+    if len(sys.argv) > 2:
+        raise SystemExit(
+            "Uso: python src/07_gerar_relatorio.py "
+            "[reuniao_XX]"
+        )
+
+    if len(sys.argv) == 2:
+
+        nome_reuniao = sys.argv[1]
+
+        if not re.fullmatch(r"reuniao_\d+", nome_reuniao):
+            raise SystemExit(
+                "Nome de reunião inválido. "
+                "Use o formato reuniao_01."
+            )
+
+        return os.path.join(
+            PASTA_REUNIOES,
+            nome_reuniao
+        )
+
+    if not os.path.exists(PASTA_REUNIOES):
+        raise SystemExit(
+            "Nenhuma reunião foi encontrada. "
+            "Execute primeiro: "
+            "python src/06_analisar_reuniao.py"
+        )
+
+    reunioes = []
+
+    for nome in os.listdir(PASTA_REUNIOES):
+
+        correspondencia = re.fullmatch(
+            r"reuniao_(\d+)",
+            nome
+        )
+
+        if correspondencia:
+
+            caminho = os.path.join(
+                PASTA_REUNIOES,
+                nome
+            )
+
+            if os.path.isfile(
+                os.path.join(caminho, "registros.csv")
+            ):
+                reunioes.append(
+                    (int(correspondencia.group(1)), caminho)
+                )
+
+    if not reunioes:
+        raise SystemExit(
+            "Nenhuma reunião com registros.csv foi encontrada."
+        )
+
+    return max(reunioes)[1]
+
+
+PASTA_REUNIAO = obter_pasta_reuniao()
 
 ARQUIVO_CSV = os.path.join(
     PASTA_REUNIAO,
@@ -41,9 +117,6 @@ LIMITE_CONFIANCA_EMOCAO = 0.45
 # ============================================================
 # PREPARAÇÃO
 # ============================================================
-
-os.makedirs(PASTA_GRAFICOS, exist_ok=True)
-
 
 if not os.path.exists(ARQUIVO_CSV):
 
@@ -74,6 +147,9 @@ if df.empty:
     print("É necessário analisar uma reunião primeiro.")
 
     raise SystemExit
+
+
+os.makedirs(PASTA_GRAFICOS, exist_ok=True)
 
 
 print(f"Trechos encontrados: {len(df)}")
@@ -126,27 +202,61 @@ duracao_total = fim_reuniao - inicio_reuniao
 
 quantidade_trechos = len(df)
 
-participantes = sorted(
+participantes_identificados = sorted(
     df["pessoa"]
     .dropna()
     .unique()
 )
 
 
-# Não contar desconhecido como participante registrado
+# Não contar desconhecido como participante identificado
 
-participantes_registrados = [
+participantes_identificados = [
     pessoa
-    for pessoa in participantes
+    for pessoa in participantes_identificados
     if pessoa != "desconhecido"
 ]
+
+
+participantes_registrados = list(
+    participantes_identificados
+)
+
+
+if os.path.exists(ARQUIVO_METADADOS_PESSOAS):
+
+    try:
+
+        with open(
+            ARQUIVO_METADADOS_PESSOAS,
+            "r",
+            encoding="utf-8"
+        ) as arquivo:
+
+            metadados_pessoas = json.load(arquivo)
+
+        participantes_registrados = sorted(
+            {
+                str(pessoa)
+                for pessoa in metadados_pessoas.get(
+                    "classes",
+                    []
+                )
+            }
+            | set(participantes_identificados)
+        )
+
+    except (OSError, ValueError, TypeError):
+        participantes_registrados = list(
+            participantes_identificados
+        )
 
 
 print()
 print(f"Duração aproximada: {duracao_total:.1f} segundos")
 print(
     f"Participantes identificados: "
-    f"{len(participantes_registrados)}"
+    f"{len(participantes_identificados)}"
 )
 
 
@@ -158,6 +268,10 @@ tempo_por_pessoa = (
     df[df["pessoa"] != "desconhecido"]
     .groupby("pessoa")["duracao"]
     .sum()
+    .reindex(
+        participantes_registrados,
+        fill_value=0
+    )
     .sort_values(ascending=False)
 )
 
@@ -166,6 +280,10 @@ trechos_por_pessoa = (
     df[df["pessoa"] != "desconhecido"]
     .groupby("pessoa")
     .size()
+    .reindex(
+        participantes_registrados,
+        fill_value=0
+    )
     .sort_values(ascending=False)
 )
 
@@ -230,6 +348,7 @@ tabela_emocoes_pessoa = (
     tabela_emocoes_pessoa[
         emocoes_esperadas
     ]
+    .reindex(participantes_registrados)
     .fillna(0)
 )
 
@@ -660,6 +779,11 @@ Relatório automático da análise da reunião.
 
 <p>
 <strong>Participantes identificados:</strong>
+{len(participantes_identificados)}
+</p>
+
+<p>
+<strong>Participantes cadastrados:</strong>
 {len(participantes_registrados)}
 </p>
 
@@ -769,6 +893,94 @@ with open(
     )
 
 
+linhas_relatorio = [
+    "RELATÓRIO DA REUNIÃO",
+    "=====================",
+    "",
+    f"Duração aproximada: {duracao_total / 60:.2f} minutos",
+    f"Trechos analisados: {quantidade_trechos}",
+    (
+        "Participantes identificados: "
+        f"{len(participantes_identificados)}"
+    ),
+    (
+        "Participantes cadastrados: "
+        f"{len(participantes_registrados)}"
+    ),
+    f"Emoção mais frequente: {emocao_mais_frequente}",
+    (
+        "Trechos nessa classificação: "
+        f"{quantidade_emocao_frequente}"
+    ),
+    f"Trechos com baixa confiança: {len(df_baixa_confianca)}",
+    "",
+    "RESULTADOS POR PARTICIPANTE",
+    "==========================="
+]
+
+
+for pessoa in participantes_registrados:
+
+    tempo = float(
+        tempo_por_pessoa.get(pessoa, 0)
+    )
+
+    quantidade = int(
+        trechos_por_pessoa.get(pessoa, 0)
+    )
+
+    linhas_relatorio.extend([
+        "",
+        str(pessoa).upper(),
+        f"Tempo estimado de fala: {tempo / 60:.2f} minutos",
+        f"Trechos analisados: {quantidade}",
+        "Classificações vocais:"
+    ])
+
+    for emocao in emocoes_esperadas:
+
+        percentual = 0.0
+
+        if pessoa in tabela_emocoes_pessoa.index:
+            percentual = float(
+                tabela_emocoes_pessoa.loc[pessoa, emocao]
+            )
+
+        linhas_relatorio.append(
+            f"- {emocao}: {percentual:.2f}%"
+        )
+
+    percentual_irritado = 0.0
+
+    if pessoa in tabela_emocoes_pessoa.index:
+        percentual_irritado = float(
+            tabela_emocoes_pessoa.loc[pessoa, "irritado"]
+        )
+
+    linhas_relatorio.append(
+        "Observação: "
+        f"{percentual_irritado:.2f}% dos trechos de fala foram "
+        "classificados como irritado. Isso não comprova o "
+        "sentimento real do participante."
+    )
+
+
+linhas_relatorio.extend([
+    "",
+    "OBSERVAÇÃO METODOLÓGICA",
+    "=======================",
+    (
+        "As classificações representam estimativas da emoção "
+        "vocal dos trechos. Elas não comprovam o sentimento real "
+        "dos participantes."
+    ),
+    (
+        "A identificação de pessoas depende da qualidade do "
+        "dataset, do microfone e das condições do ambiente."
+    )
+])
+
+
 with open(
     ARQUIVO_RELATORIO_TXT,
     "w",
@@ -776,16 +988,7 @@ with open(
 ) as arquivo:
 
     arquivo.write(
-        "RELATORIO DA REUNIAO\n"
-        "=====================\n\n"
-        f"Duracao aproximada: {duracao_total / 60:.2f} minutos\n"
-        f"Trechos analisados: {quantidade_trechos}\n"
-        f"Participantes identificados: "
-        f"{len(participantes_registrados)}\n"
-        f"Emocao mais frequente: "
-        f"{emocao_mais_frequente}\n"
-        f"Trechos nessa classificacao: "
-        f"{quantidade_emocao_frequente}\n"
+        "\n".join(linhas_relatorio) + "\n"
     )
 
 

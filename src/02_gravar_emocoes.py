@@ -1,5 +1,4 @@
 import os
-import random
 import time
 import wave
 
@@ -96,6 +95,18 @@ FRASES = [
     "Precisamos avaliar os resultados.",
     "A equipe pode continuar o trabalho."
 ]
+
+
+def escolher_frase(numero):
+    """
+    Usa a mesma frase para o mesmo número de rodada em todas
+    as emoções. Assim, a gravação 001 de alegre, neutro,
+    triste e irritado sempre utiliza a mesma frase.
+    """
+
+    indice = (numero - 1) % len(FRASES)
+
+    return FRASES[indice]
 
 
 # ============================================================
@@ -381,9 +392,7 @@ def gravar_emocao(
 
     for _ in range(faltam):
 
-        frase = random.choice(
-            FRASES
-        )
+        frase = escolher_frase(numero)
 
         print()
         print("-" * 60)

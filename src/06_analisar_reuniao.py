@@ -1,5 +1,6 @@
 import csv
 import os
+import re
 import sys
 import time
 import wave
@@ -22,32 +23,13 @@ PASTA_RAIZ = os.path.dirname(
 TAXA_AMOSTRAGEM = 16000
 CANAIS = 1
 FORMATO = pyaudio.paInt16
+TAMANHO_BUFFER = 1024
 DURACAO_BLOCO = 4
 
 LIMITE_CONFIANCA_PESSOA = 0.45
 
-PASTA_REUNIOES = os.path.join(
-    PASTA_RAIZ,
-    "reunioes"
-)
-NOME_REUNIAO = "reuniao_01"
-PASTA_REUNIAO = os.path.join(
-    PASTA_REUNIOES,
-    NOME_REUNIAO
-)
-PASTA_BLOCOS_AUDIO = os.path.join(
-    PASTA_REUNIAO,
-    "blocos_audio"
-)
-PASTA_MODELOS = os.path.join(
-    PASTA_RAIZ,
-    "modelos"
-)
-
-ARQUIVO_CSV = os.path.join(
-    PASTA_REUNIAO,
-    "registros.csv"
-)
+PASTA_REUNIOES = os.path.join(PASTA_RAIZ, "reunioes")
+PASTA_MODELOS = os.path.join(PASTA_RAIZ, "modelos")
 
 MODELO_PESSOAS = os.path.join(
     PASTA_MODELOS,
@@ -60,196 +42,156 @@ MODELO_EMOCOES = os.path.join(
 )
 
 
-# ============================================================
-# PREPARAÇÃO
-# ============================================================
+def obter_proximo_nome_reuniao():
+    """Retorna um nome sequencial sem reutilizar reuniões anteriores."""
 
-os.makedirs(PASTA_BLOCOS_AUDIO, exist_ok=True)
+    if not os.path.exists(PASTA_REUNIOES):
+        return "reuniao_01"
 
-if not os.path.exists(MODELO_PESSOAS):
-    print("ERRO: modelo de pessoas não encontrado.")
-    print(f"Esperado em: {MODELO_PESSOAS}")
-    sys.exit(1)
+    numeros = []
 
-if not os.path.exists(MODELO_EMOCOES):
-    print("ERRO: modelo de emoções não encontrado.")
-    print(f"Esperado em: {MODELO_EMOCOES}")
-    sys.exit(1)
+    for nome in os.listdir(PASTA_REUNIOES):
 
+        correspondencia = re.fullmatch(r"reuniao_(\d+)", nome)
 
-print("Carregando modelos...")
+        if correspondencia:
+            numeros.append(int(correspondencia.group(1)))
 
-modelo_pessoas = joblib.load(MODELO_PESSOAS)
-modelo_emocoes = joblib.load(MODELO_EMOCOES)
+    proximo_numero = max(numeros, default=0) + 1
 
-print("Modelos carregados com sucesso.")
+    return f"reuniao_{proximo_numero:02d}"
 
 
-# ============================================================
-# MICROFONE
-# ============================================================
+def carregar_modelos():
+    """Verifica e carrega os dois modelos exigidos pelo projeto."""
 
-audio = pyaudio.PyAudio()
+    if not os.path.exists(MODELO_PESSOAS):
+        raise FileNotFoundError(
+            "Modelo de pessoas não encontrado:\n"
+            f"{MODELO_PESSOAS}"
+        )
 
-stream = audio.open(
-    format=FORMATO,
-    channels=CANAIS,
-    rate=TAXA_AMOSTRAGEM,
-    input=True,
-    frames_per_buffer=1024
-)
+    if not os.path.exists(MODELO_EMOCOES):
+        raise FileNotFoundError(
+            "Modelo de emoções não encontrado:\n"
+            f"{MODELO_EMOCOES}"
+        )
+
+    print("Carregando modelos...")
+
+    modelo_pessoas = joblib.load(MODELO_PESSOAS)
+    modelo_emocoes = joblib.load(MODELO_EMOCOES)
+
+    print("Modelos carregados com sucesso.")
+
+    return modelo_pessoas, modelo_emocoes
 
 
-# ============================================================
-# FUNÇÕES
-# ============================================================
+def preparar_reuniao(nome_reuniao):
+    """Cria a estrutura obrigatória da reunião e o CSV."""
 
-def gravar_bloco():
-    """
-    Grava um bloco de áudio de DURACAO_BLOCO segundos.
-    """
+    pasta_reuniao = os.path.join(PASTA_REUNIOES, nome_reuniao)
+    pasta_blocos_audio = os.path.join(pasta_reuniao, "blocos_audio")
+    arquivo_csv = os.path.join(pasta_reuniao, "registros.csv")
+
+    os.makedirs(pasta_blocos_audio, exist_ok=False)
+
+    with open(
+        arquivo_csv,
+        "w",
+        newline="",
+        encoding="utf-8"
+    ) as arquivo:
+
+        escritor = csv.writer(arquivo)
+
+        escritor.writerow([
+            "inicio",
+            "fim",
+            "pessoa",
+            "conf_pessoa",
+            "emocao",
+            "conf_emocao",
+            "arquivo"
+        ])
+
+    return pasta_reuniao, pasta_blocos_audio, arquivo_csv
+
+
+def gravar_bloco(stream):
+    """Grava um bloco de áudio com a duração configurada."""
 
     frames = []
 
     quantidade_blocos = int(
-        TAXA_AMOSTRAGEM / 1024 * DURACAO_BLOCO
+        TAXA_AMOSTRAGEM / TAMANHO_BUFFER * DURACAO_BLOCO
     )
 
     for _ in range(quantidade_blocos):
+
         dados = stream.read(
-            1024,
+            TAMANHO_BUFFER,
             exception_on_overflow=False
         )
+
         frames.append(dados)
 
     return b"".join(frames)
 
 
-def salvar_audio(dados, numero_bloco):
-    """
-    Salva o bloco de áudio como WAV.
-    """
+def salvar_audio(
+    dados,
+    numero_bloco,
+    pasta_blocos_audio,
+    tamanho_amostra
+):
+    """Salva um bloco em WAV dentro da reunião atual."""
 
     nome_arquivo = f"bloco_{numero_bloco:03d}.wav"
+    caminho = os.path.join(pasta_blocos_audio, nome_arquivo)
 
-    caminho = os.path.join(
-        PASTA_BLOCOS_AUDIO,
-        nome_arquivo
-    )
+    with wave.open(caminho, "wb") as arquivo:
 
-    arquivo = wave.open(caminho, "wb")
-
-    arquivo.setnchannels(CANAIS)
-    arquivo.setsampwidth(audio.get_sample_size(FORMATO))
-    arquivo.setframerate(TAXA_AMOSTRAGEM)
-    arquivo.writeframes(dados)
-
-    arquivo.close()
+        arquivo.setnchannels(CANAIS)
+        arquivo.setsampwidth(tamanho_amostra)
+        arquivo.setframerate(TAXA_AMOSTRAGEM)
+        arquivo.writeframes(dados)
 
     return caminho
 
 
-def classificar_audio(caminho_audio):
-    """
-    Classifica o mesmo trecho de áudio usando:
+def classificar_audio(
+    caminho_audio,
+    modelo_pessoas,
+    modelo_emocoes
+):
+    """Identifica a pessoa e estima a emoção vocal."""
 
-    1. Modelo de pessoa
-    2. Modelo de emoção
-    """
+    caracteristicas = extrair_caracteristicas(caminho_audio)
 
-    caracteristicas = extrair_caracteristicas(
-        caminho_audio
-    )
-
-    X = np.array(
+    entrada = np.array(
         [caracteristicas],
         dtype=np.float32
     )
 
-    # --------------------------------------------------------
-    # PESSOA
-    # --------------------------------------------------------
+    probabilidades_pessoa = modelo_pessoas.predict_proba(entrada)[0]
+    indice_pessoa = np.argmax(probabilidades_pessoa)
+    pessoa = modelo_pessoas.classes_[indice_pessoa]
+    confianca_pessoa = float(probabilidades_pessoa[indice_pessoa])
 
-    probabilidades_pessoa = (
-        modelo_pessoas.predict_proba(X)[0]
-    )
-
-    indice_pessoa = np.argmax(
-        probabilidades_pessoa
-    )
-
-    pessoa = modelo_pessoas.classes_[
-        indice_pessoa
-    ]
-
-    confianca_pessoa = float(
-        probabilidades_pessoa[indice_pessoa]
-    )
-
-    # --------------------------------------------------------
-    # EMOÇÃO
-    # --------------------------------------------------------
-
-    probabilidades_emocao = (
-        modelo_emocoes.predict_proba(X)[0]
-    )
-
-    indice_emocao = np.argmax(
-        probabilidades_emocao
-    )
-
-    emocao = modelo_emocoes.classes_[
-        indice_emocao
-    ]
-
-    confianca_emocao = float(
-        probabilidades_emocao[indice_emocao]
-    )
-
-    # --------------------------------------------------------
-    # DESCONHECIDO
-    # --------------------------------------------------------
+    probabilidades_emocao = modelo_emocoes.predict_proba(entrada)[0]
+    indice_emocao = np.argmax(probabilidades_emocao)
+    emocao = modelo_emocoes.classes_[indice_emocao]
+    confianca_emocao = float(probabilidades_emocao[indice_emocao])
 
     if confianca_pessoa < LIMITE_CONFIANCA_PESSOA:
         pessoa = "desconhecido"
 
-    return (
-        pessoa,
-        confianca_pessoa,
-        emocao,
-        confianca_emocao
-    )
-
-
-def preparar_csv():
-    """
-    Cria o CSV com o cabeçalho exigido pelo projeto,
-    caso ele ainda não exista.
-    """
-
-    if not os.path.exists(ARQUIVO_CSV):
-
-        with open(
-            ARQUIVO_CSV,
-            "w",
-            newline="",
-            encoding="utf-8"
-        ) as arquivo:
-
-            escritor = csv.writer(arquivo)
-
-            escritor.writerow([
-                "inicio",
-                "fim",
-                "pessoa",
-                "conf_pessoa",
-                "emocao",
-                "conf_emocao",
-                "arquivo"
-            ])
+    return pessoa, confianca_pessoa, emocao, confianca_emocao
 
 
 def registrar_resultado(
+    arquivo_csv,
     inicio,
     fim,
     pessoa,
@@ -258,12 +200,12 @@ def registrar_resultado(
     confianca_emocao,
     caminho_audio
 ):
-    """
-    Adiciona o resultado de um trecho ao CSV.
-    """
+    """Registra todo bloco gravado, inclusive uma análise incerta."""
+
+    caminho_relativo = os.path.relpath(caminho_audio, PASTA_RAIZ)
 
     with open(
-        ARQUIVO_CSV,
+        arquivo_csv,
         "a",
         newline="",
         encoding="utf-8"
@@ -278,89 +220,146 @@ def registrar_resultado(
             round(confianca_pessoa, 4),
             emocao,
             round(confianca_emocao, 4),
-            caminho_audio
+            caminho_relativo
         ])
 
 
-# ============================================================
-# INÍCIO DA REUNIÃO
-# ============================================================
+def main():
 
-preparar_csv()
+    try:
 
-print()
-print("=" * 60)
-print("        SALA DE REUNIÃO INTELIGENTE")
-print("=" * 60)
-print()
-print(f"Cada trecho terá {DURACAO_BLOCO} segundos.")
-print()
-print("Pressione ENTER para iniciar a análise.")
-print("Durante a reunião, pressione CTRL+C para finalizar.")
-print()
+        modelo_pessoas, modelo_emocoes = carregar_modelos()
 
-input("ENTER para começar...")
+    except Exception as erro:
 
-print()
-print("Análise iniciada!")
-print("Fale normalmente, uma pessoa por vez.")
-print("Pressione CTRL+C quando quiser encerrar.")
-print()
+        print()
+        print("ERRO AO CARREGAR OS MODELOS.")
+        print(erro)
 
+        return 1
 
-numero_bloco = 1
-inicio_reuniao = time.time()
+    audio = pyaudio.PyAudio()
 
+    try:
 
-# ============================================================
-# LOOP DA REUNIÃO
-# ============================================================
+        tamanho_amostra = audio.get_sample_size(FORMATO)
 
-try:
-
-    while True:
-
-        print(
-            f"[Trecho {numero_bloco:04d}] "
-            f"Gravando..."
+        stream = audio.open(
+            format=FORMATO,
+            channels=CANAIS,
+            rate=TAXA_AMOSTRAGEM,
+            input=True,
+            frames_per_buffer=TAMANHO_BUFFER
         )
 
-        inicio = time.time()
+    except Exception as erro:
 
-        dados_audio = gravar_bloco()
+        print()
+        print("ERRO AO ACESSAR O MICROFONE.")
+        print(erro)
 
-        fim = time.time()
+        audio.terminate()
 
-        caminho_audio = salvar_audio(
-            dados_audio,
-            numero_bloco
-        )
+        return 1
 
-        print("  Áudio gravado.")
-        print("  Analisando...")
+    nome_reuniao = obter_proximo_nome_reuniao()
 
-        try:
+    try:
 
-            (
-                pessoa,
-                confianca_pessoa,
-                emocao,
-                confianca_emocao
-            ) = classificar_audio(
-                caminho_audio
+        (
+            pasta_reuniao,
+            pasta_blocos_audio,
+            arquivo_csv
+        ) = preparar_reuniao(nome_reuniao)
+
+    except Exception as erro:
+
+        print()
+        print("ERRO AO PREPARAR A PASTA DA REUNIÃO.")
+        print(erro)
+
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
+
+        return 1
+
+    print()
+    print("=" * 60)
+    print("        SALA DE REUNIÃO INTELIGENTE")
+    print("=" * 60)
+    print()
+    print(f"Reunião: {nome_reuniao}")
+    print(f"Cada bloco terá {DURACAO_BLOCO} segundos.")
+    print()
+    print("Pressione ENTER para iniciar a análise.")
+    print("Durante a reunião, pressione CTRL+C para finalizar.")
+    print()
+
+    numero_bloco = 1
+
+    try:
+
+        input("ENTER para começar...")
+
+        print()
+        print("Análise iniciada!")
+        print("Fale normalmente, uma pessoa por vez.")
+        print()
+
+        inicio_reuniao = time.time()
+
+        while True:
+
+            print(f"[Bloco {numero_bloco:03d}] Gravando...")
+
+            inicio = time.time()
+            dados_audio = gravar_bloco(stream)
+            fim = time.time()
+
+            caminho_audio = salvar_audio(
+                dados_audio,
+                numero_bloco,
+                pasta_blocos_audio,
+                tamanho_amostra
             )
 
-            inicio_formatado = (
-                inicio - inicio_reuniao
-            )
+            inicio_formatado = round(inicio - inicio_reuniao, 2)
+            fim_formatado = round(fim - inicio_reuniao, 2)
 
-            fim_formatado = (
-                fim - inicio_reuniao
-            )
+            print("  Áudio gravado.")
+            print("  Analisando...")
+
+            try:
+
+                (
+                    pessoa,
+                    confianca_pessoa,
+                    emocao,
+                    confianca_emocao
+                ) = classificar_audio(
+                    caminho_audio,
+                    modelo_pessoas,
+                    modelo_emocoes
+                )
+
+            except Exception as erro:
+
+                pessoa = "desconhecido"
+                confianca_pessoa = 0.0
+                emocao = "incerto"
+                confianca_emocao = 0.0
+
+                print(
+                    "  A análise falhou; o bloco será "
+                    "registrado como incerto."
+                )
+                print(f"  Motivo: {erro}")
 
             registrar_resultado(
-                round(inicio_formatado, 2),
-                round(fim_formatado, 2),
+                arquivo_csv,
+                inicio_formatado,
+                fim_formatado,
                 pessoa,
                 confianca_pessoa,
                 emocao,
@@ -368,69 +367,41 @@ try:
                 caminho_audio
             )
 
-            print(
-                f"  Pessoa: {pessoa} "
-                f"({confianca_pessoa:.1%})"
-            )
-
+            print(f"  Pessoa: {pessoa} ({confianca_pessoa:.1%})")
             print(
                 f"  Emoção estimada: {emocao} "
                 f"({confianca_emocao:.1%})"
             )
+            print(f"  Resultado salvo em: {arquivo_csv}")
+            print()
 
-            if pessoa == "desconhecido":
-                print(
-                    "  ⚠️ Confiança da identificação "
-                    "abaixo do limite."
-                )
+            numero_bloco += 1
 
-            print(
-                f"  Resultado salvo em: {ARQUIVO_CSV}"
-            )
-
-        except Exception as erro:
-
-            print(
-                "  ERRO ao analisar o trecho:"
-            )
-
-            print(f"  {erro}")
+    except KeyboardInterrupt:
 
         print()
+        print("=" * 60)
+        print("Reunião encerrada.")
+        print("=" * 60)
 
-        numero_bloco += 1
+    finally:
 
-
-# ============================================================
-# FINALIZAÇÃO
-# ============================================================
-
-except KeyboardInterrupt:
-
-    print()
-    print("=" * 60)
-    print("Reunião encerrada.")
-    print("=" * 60)
-
-finally:
-
-    stream.stop_stream()
-    stream.close()
-
-    audio.terminate()
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
 
     print()
-    print(
-        f"Resultados salvos em:"
-        f"\n{ARQUIVO_CSV}"
-    )
-
-    print(
-        f"Áudios salvos em:"
-        f"\n{PASTA_BLOCOS_AUDIO}"
-    )
-
+    print(f"Resultados salvos em:\n{arquivo_csv}")
+    print(f"\nÁudios salvos em:\n{pasta_blocos_audio}")
     print()
+    print("Próxima etapa:")
     print(
-        "Próxima etapa: geração automática do relatório."
+        "python src/07_gerar_relatorio.py "
+        f"{nome_reuniao}"
     )
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
