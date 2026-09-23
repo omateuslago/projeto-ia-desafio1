@@ -5,3 +5,5 @@ numpy
 pandas
 PyAudio
 scikit-learn
+fastapi
+uvicorn[standard]
