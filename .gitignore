@@ -20,6 +20,9 @@ dist/
 *.egg-info/
 .eggs/
 
+# Dependências JavaScript
+node_modules/
+
 # Configurações locais e segredos
 .env
 .env.*
