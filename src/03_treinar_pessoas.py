@@ -135,7 +135,7 @@ def carregar_dataset():
             ]
         )
 
-        quantidade_por_pessoa[pessoa] = len(arquivos)
+        quantidade_por_pessoa[pessoa] = 0
 
         print(
             f"{pessoa:<20} "
@@ -166,6 +166,7 @@ def carregar_dataset():
 
                 X.append(caracteristicas)
                 y.append(pessoa)
+                quantidade_por_pessoa[pessoa] += 1
 
             except Exception as erro:
 
@@ -177,6 +178,13 @@ def carregar_dataset():
                 print(
                     f"Motivo: {erro}"
                 )
+
+        validos = quantidade_por_pessoa[pessoa]
+        if validos < TAMANHO_MINIMO_DATASET:
+            raise ValueError(
+                f"A classe '{pessoa}' tem apenas {validos} áudios válidos; "
+                f"são necessários {TAMANHO_MINIMO_DATASET}."
+            )
 
     if len(X) == 0:
 
@@ -229,20 +237,10 @@ def verificar_dataset(y):
 
     print()
 
-    if len(classes) < 2:
-
-        raise ValueError(
-            "O dataset precisa possuir pelo menos "
-            "duas pessoas diferentes."
-        )
-
-    if np.min(quantidades) < 2:
-
-        raise ValueError(
-            "Cada pessoa precisa possuir pelo menos "
-            "2 áudios para realizar a divisão entre "
-            "treino e teste."
-        )
+    if len(classes) < QUANTIDADE_MINIMA_PESSOAS:
+        raise ValueError(f"São necessárias pelo menos {QUANTIDADE_MINIMA_PESSOAS} classes válidas.")
+    if np.min(quantidades) < TAMANHO_MINIMO_DATASET:
+        raise ValueError(f"Cada classe precisa de {TAMANHO_MINIMO_DATASET} áudios válidos.")
 
 
 # ============================================================

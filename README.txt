@@ -10,12 +10,23 @@ e nao comprovam o sentimento real dos participantes.
 REQUISITOS
 ----------
 
-- Python 3
+- Python 3.10 ou superior
+- Node.js ^20.19.0 ou >=22.12.0 e npm (somente para interface web)
 - Microfone reconhecido pelo sistema
 - PortAudio
 - Bibliotecas listadas em requirements.txt
 
-Preparacao do ambiente, a partir da raiz do projeto:
+Guia completo e atualizado: readme.md.
+
+Windows/PowerShell, a partir da raiz, usando runtimes autorizados:
+
+    python -m venv .venv
+    .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+No Windows, substitua "python" nos passos abaixo por
+".\.venv\Scripts\python.exe". Nao e necessario ativar a venv.
+
+Linux, a partir da raiz do projeto:
 
     python3 -m venv .venv
     source .venv/bin/activate
@@ -24,6 +35,9 @@ Preparacao do ambiente, a partir da raiz do projeto:
 
 ORDEM DE EXECUCAO
 -----------------
+
+Se os datasets locais ja estiverem prontos, comece no passo 3.
+Eles nao sao versionados no Git.
 
 1. Gravar o dataset de pessoas:
 
@@ -57,7 +71,8 @@ ORDEM DE EXECUCAO
 
     python src/06_analisar_reuniao.py
 
-   Pressione ENTER para iniciar e CTRL+C para encerrar. Cada
+   Pressione ENTER para iniciar e CTRL+C para encerrar.
+   Aguarde os blocos pendentes antes de fechar o terminal. Cada
    execucao cria uma pasta numerada em reunioes/, contendo
    blocos_audio/ e registros.csv.
 
@@ -69,6 +84,26 @@ ORDEM DE EXECUCAO
 
     python src/07_gerar_relatorio.py reuniao_01
 
+
+INTERFACE WEB LOCAL
+------------------
+
+Depois de treinar, execute a API na raiz (Windows):
+
+    .\.venv\Scripts\python.exe -m uvicorn api.main:app --host 127.0.0.1 --port 8000
+
+Em outro terminal, na raiz:
+
+    cd frontend
+    npm ci
+    npm run dev
+
+Abra http://127.0.0.1:5173. Use Iniciar/Parar em Reuniao ao Vivo.
+Aguarde finalizar os trechos pendentes e gere o relatorio.
+O microfone e o do computador da API. Use apenas um processo da
+API, sem reload. Encerre a analise antes de fechar os terminais.
+Nao ha autenticacao; mantenha o uso local.
+Em computador corporativo, use apenas instalacoes autorizadas.
 
 ARQUIVOS GERADOS
 ----------------
@@ -96,7 +131,8 @@ ENTREGA
 -------
 
 Crie o arquivo ENTREGA_DO_GRUPO.zip com uma pasta principal
-chamada sala_reuniao_ia. Essa pasta deve incluir src/,
+chamada sala_reuniao_ia. Essa pasta deve incluir src/, api/,
+frontend/ (sem node_modules/), readme.md,
 dataset_pessoas/,
 dataset_emocoes/, modelos/, resultados/, reunioes/,
 README.txt e requirements.txt. Os datasets e resultados sao

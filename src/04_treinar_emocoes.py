@@ -42,6 +42,8 @@ NOME_MODELO = "modelo_emocoes.pkl"
 TAMANHO_MINIMO_DATASET = 25
 QUANTIDADE_MINIMA_EMOCOES = 4
 
+EMOCOES_ESPERADAS = {"alegre", "neutro", "triste", "irritado"}
+
 RANDOM_STATE = 42
 
 
@@ -102,6 +104,9 @@ def carregar_dataset():
         ]
     )
 
+    if set(emocoes) != EMOCOES_ESPERADAS:
+        raise ValueError("Use exatamente as pastas: alegre, neutro, triste e irritado.")
+
     if len(emocoes) < QUANTIDADE_MINIMA_EMOCOES:
 
         raise ValueError(
@@ -131,7 +136,7 @@ def carregar_dataset():
             ]
         )
 
-        quantidade_por_emocao[emocao] = len(arquivos)
+        quantidade_por_emocao[emocao] = 0
 
         print(
             f"{emocao:<20} "
@@ -162,6 +167,7 @@ def carregar_dataset():
 
                 X.append(caracteristicas)
                 y.append(emocao)
+                quantidade_por_emocao[emocao] += 1
 
             except Exception as erro:
 
@@ -173,6 +179,13 @@ def carregar_dataset():
                 print(
                     f"Motivo: {erro}"
                 )
+
+        validos = quantidade_por_emocao[emocao]
+        if validos < TAMANHO_MINIMO_DATASET:
+            raise ValueError(
+                f"A classe '{emocao}' tem apenas {validos} áudios válidos; "
+                f"são necessários {TAMANHO_MINIMO_DATASET}."
+            )
 
     if len(X) == 0:
 
@@ -224,20 +237,12 @@ def verificar_dataset(y):
 
     print()
 
-    if len(classes) < 2:
-
-        raise ValueError(
-            "O dataset precisa possuir pelo menos "
-            "duas emoções diferentes."
-        )
-
-    if np.min(quantidades) < 2:
-
-        raise ValueError(
-            "Cada emoção precisa possuir pelo menos "
-            "2 áudios para realizar a divisão entre "
-            "treino e teste."
-        )
+    if set(classes) != EMOCOES_ESPERADAS:
+        raise ValueError("Faltam classes emocionais válidas ou existem classes inesperadas.")
+    if len(classes) < QUANTIDADE_MINIMA_EMOCOES:
+        raise ValueError(f"São necessárias pelo menos {QUANTIDADE_MINIMA_EMOCOES} classes válidas.")
+    if np.min(quantidades) < TAMANHO_MINIMO_DATASET:
+        raise ValueError(f"Cada classe precisa de {TAMANHO_MINIMO_DATASET} áudios válidos.")
 
 
 # ============================================================

@@ -126,7 +126,7 @@ if not os.path.exists(ARQUIVO_CSV):
     print("Execute primeiro:")
     print("python src/06_analisar_reuniao.py")
 
-    raise SystemExit
+    raise SystemExit(1)
 
 
 print("=" * 60)
@@ -139,14 +139,17 @@ print()
 # LEITURA DOS DADOS
 # ============================================================
 
-df = pd.read_csv(ARQUIVO_CSV)
+try:
+    df = pd.read_csv(ARQUIVO_CSV)
+except pd.errors.EmptyDataError:
+    raise SystemExit("ERRO: o CSV está vazio.")
 
 if df.empty:
 
     print("ERRO: o CSV está vazio.")
     print("É necessário analisar uma reunião primeiro.")
 
-    raise SystemExit
+    raise SystemExit(1)
 
 
 os.makedirs(PASTA_GRAFICOS, exist_ok=True)

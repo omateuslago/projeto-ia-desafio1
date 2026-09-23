@@ -4,7 +4,6 @@ import csv
 import os
 import platform
 import re
-import signal
 import subprocess
 import sys
 import threading
@@ -185,7 +184,7 @@ def list_meeting_paths() -> list[Path]:
         if path.is_dir() and MEETING_PATTERN.fullmatch(path.name)
     ]
 
-    return sorted(paths, key=lambda item: item.name, reverse=True)
+    return sorted(paths, key=lambda item: int(item.name.split("_")[1]), reverse=True)
 
 
 def get_process_state() -> dict[str, Any]:
@@ -203,9 +202,6 @@ def get_process_state() -> dict[str, Any]:
         }
 
     code = process.poll()
-    if code is not None:
-        with analysis_lock:
-            analysis_process = None
 
     return {
         "rodando": code is None,
@@ -269,6 +265,11 @@ def start_analysis() -> dict[str, Any]:
     if not ANALYSIS_SCRIPT.exists():
         raise HTTPException(status_code=500, detail="Script de analise nao encontrado.")
 
+    if not all((MODELS_DIR / name).is_file() for name in (
+        "modelo_pessoas.pkl", "modelo_emocoes.pkl"
+    )):
+        raise HTTPException(status_code=400, detail="Treine os dois modelos antes de iniciar.")
+
     with analysis_lock:
         if analysis_process is not None and analysis_process.poll() is None:
             raise HTTPException(status_code=409, detail="A analise ja esta em execucao.")
@@ -280,15 +281,17 @@ def start_analysis() -> dict[str, Any]:
             creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
 
         analysis_process = subprocess.Popen(
-            [sys.executable, "-u", str(ANALYSIS_SCRIPT)],
+            [sys.executable, "-u", str(ANALYSIS_SCRIPT), "--automatico"],
             cwd=ROOT_DIR,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             bufsize=1,
             creationflags=creationflags,
-            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+            env={**os.environ, "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"},
         )
 
         threading.Thread(
@@ -296,10 +299,6 @@ def start_analysis() -> dict[str, Any]:
             args=(analysis_process,),
             daemon=True,
         ).start()
-
-        if analysis_process.stdin is not None:
-            analysis_process.stdin.write("\n")
-            analysis_process.stdin.flush()
 
     return {"mensagem": "Analise iniciada.", "processo": get_process_state()}
 
@@ -314,17 +313,18 @@ def stop_analysis() -> dict[str, Any]:
     if process is None or process.poll() is not None:
         return {"mensagem": "Nenhuma analise em execucao.", "processo": get_process_state()}
 
-    try:
-        if platform.system() == "Windows":
-            process.send_signal(signal.CTRL_BREAK_EVENT)
-        else:
-            process.send_signal(signal.SIGINT)
+    # O canal stdin funciona também no Windows sem depender de um console.
+    # O filho encerra a captura e termina de analisar os WAVs pendentes.
+    with analysis_lock:
+        try:
+            if process.stdin is not None and not process.stdin.closed:
+                process.stdin.write("parar\n")
+                process.stdin.flush()
+        except (BrokenPipeError, OSError):
+            if process.poll() is None:
+                raise HTTPException(status_code=500, detail="Falha ao solicitar encerramento.")
 
-        process.wait(timeout=12)
-    except Exception:
-        process.terminate()
-
-    return {"mensagem": "Analise encerrada.", "processo": get_process_state()}
+    return {"mensagem": "Encerramento solicitado; aguardando os blocos pendentes.", "processo": get_process_state()}
 
 
 @app.post("/api/reunioes/{nome}/relatorio")
@@ -336,15 +336,26 @@ def generate_report(nome: str) -> dict[str, Any]:
     if not (path / "registros.csv").exists():
         raise HTTPException(status_code=400, detail="A reuniao ainda nao possui registros.csv.")
 
-    result = subprocess.run(
-        [sys.executable, "-u", str(REPORT_SCRIPT), nome],
-        cwd=ROOT_DIR,
-        capture_output=True,
-        text=True,
-        timeout=180,
-    )
+    if get_process_state()["rodando"]:
+        raise HTTPException(status_code=409, detail="Aguarde a analise encerrar antes de gerar o relatorio.")
+    if not read_csv_rows(path / "registros.csv"):
+        raise HTTPException(status_code=400, detail="O CSV esta vazio; grave ao menos um trecho.")
 
-    if result.returncode != 0:
+    try:
+        result = subprocess.run(
+            [sys.executable, "-u", str(REPORT_SCRIPT), nome],
+            cwd=ROOT_DIR,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env={**os.environ, "PYTHONIOENCODING": "utf-8", "MPLBACKEND": "Agg"},
+            timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Tempo limite ao gerar relatorio.")
+
+    if result.returncode != 0 or not (path / "relatorio_reuniao.html").is_file():
         raise HTTPException(
             status_code=500,
             detail={

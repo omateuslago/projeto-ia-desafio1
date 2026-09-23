@@ -223,6 +223,13 @@ function HomePage({ status, onRefresh }) {
 function LivePage({ status, latest, onRefresh }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [stopping, setStopping] = useState(false);
+  const running = Boolean(status?.processo?.rodando);
+  const modelsReady = Boolean(status?.modelos?.pessoas && status?.modelos?.emocoes);
+
+  useEffect(() => {
+    if (!running) setStopping(false);
+  }, [running]);
 
   const start = async () => {
     setBusy(true);
@@ -242,6 +249,7 @@ function LivePage({ status, latest, onRefresh }) {
     setError("");
     try {
       await api("/api/reunioes/analisar/parar", { method: "POST" });
+      setStopping(true);
       await onRefresh();
     } catch (err) {
       setError(err.message);
@@ -250,7 +258,6 @@ function LivePage({ status, latest, onRefresh }) {
     }
   };
 
-  const running = Boolean(status?.processo?.rodando);
   const logs = status?.processo?.logs || [];
 
   return (
@@ -261,18 +268,21 @@ function LivePage({ status, latest, onRefresh }) {
           <h1>Reunião ao Vivo</h1>
         </div>
         <div className="actions">
-          <button className="primary" onClick={start} disabled={busy || running}>
+          <button className="primary" onClick={start} disabled={busy || running || !modelsReady}>
             {busy && !running ? <Loader2 className="spin" size={18} /> : <Play size={18} />}
             Iniciar
           </button>
-          <button className="secondary" onClick={stop} disabled={busy || !running}>
+          <button className="secondary" onClick={stop} disabled={busy || !running || stopping}>
             <Pause size={18} />
-            Parar
+            {stopping ? "Finalizando…" : "Parar"}
           </button>
         </div>
       </section>
 
       {error ? <div className="error">{error}</div> : null}
+
+      {stopping ? <p>Captura encerrando. Aguarde a análise dos trechos pendentes.</p> : null}
+      {!modelsReady ? <p>Treine os modelos de pessoas e emoções pelo terminal antes de iniciar.</p> : null}
 
       <section className="panel">
         <div className="section-title">

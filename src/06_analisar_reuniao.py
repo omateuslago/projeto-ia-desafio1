@@ -1,8 +1,11 @@
+import argparse
 import csv
 import os
 import re
 import sys
-import time
+import queue
+import signal
+import threading
 import wave
 
 import joblib
@@ -118,25 +121,55 @@ def preparar_reuniao(nome_reuniao):
     return pasta_reuniao, pasta_blocos_audio, arquivo_csv
 
 
-def gravar_bloco(stream):
+def gravar_bloco(stream, parar):
     """Grava um bloco de áudio com a duração configurada."""
 
     frames = []
 
-    quantidade_blocos = int(
-        TAXA_AMOSTRAGEM / TAMANHO_BUFFER * DURACAO_BLOCO
-    )
-
-    for _ in range(quantidade_blocos):
+    restantes = TAXA_AMOSTRAGEM * DURACAO_BLOCO
+    while restantes > 0 and not parar.is_set():
+        quantidade = min(TAMANHO_BUFFER, restantes)
 
         dados = stream.read(
-            TAMANHO_BUFFER,
-            exception_on_overflow=False
+            quantidade,
+            exception_on_overflow=True
         )
 
         frames.append(dados)
+        restantes -= quantidade
 
     return b"".join(frames)
+
+
+def capturar_blocos(stream, parar, concluida, pendentes, erros,
+                    pasta_blocos_audio, tamanho_amostra):
+    """Salva WAVs sem aguardar os modelos; a fila contém somente caminhos."""
+    amostras = 0
+    numero = 1
+    try:
+        while not parar.is_set():
+            dados = gravar_bloco(stream, parar)
+            if not dados:
+                break
+            inicio = amostras / TAXA_AMOSTRAGEM
+            amostras += len(dados) // (tamanho_amostra * CANAIS)
+            fim = amostras / TAXA_AMOSTRAGEM
+            caminho = salvar_audio(dados, numero, pasta_blocos_audio, tamanho_amostra)
+            pendentes.put((inicio, fim, caminho))
+            numero += 1
+    except Exception as erro:
+        erros.append(erro)
+        parar.set()
+    finally:
+        concluida.set()
+
+
+def aguardar_encerramento(entrada, parar):
+    """A API envia 'parar'; EOF encerra caso o processo pai saia."""
+    for linha in entrada:
+        if linha.strip().lower() == "parar":
+            break
+    parar.set()
 
 
 def salvar_audio(
@@ -225,182 +258,98 @@ def registrar_resultado(
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Análise local de uma reunião")
+    parser.add_argument("--automatico", action="store_true",
+                        help="Inicia sem Enter; recebe parar pela entrada padrão")
+    args = parser.parse_args()
+    parar = threading.Event()
+    concluida = threading.Event()
+    pendentes = queue.Queue()
+    erros = []
+    audio = None
+    stream = None
+    captura = None
+    sinais_anteriores = {}
+
+    def solicitar_encerramento(signum, frame):
+        parar.set()
 
     try:
+        if args.automatico:
+            threading.Thread(target=aguardar_encerramento,
+                             args=(sys.stdin, parar), daemon=True).start()
+        else:
+            # O microfone só é aberto depois da confirmação do usuário.
+            input("ENTER para começar (CTRL+C durante a captura para encerrar)...")
 
+        for nome in ("SIGINT", "SIGTERM", "SIGBREAK"):
+            sinal = getattr(signal, nome, None)
+            if sinal is not None:
+                sinais_anteriores[sinal] = signal.signal(sinal, solicitar_encerramento)
+
+        if parar.is_set():
+            return 0
         modelo_pessoas, modelo_emocoes = carregar_modelos()
-
-    except Exception as erro:
-
-        print()
-        print("ERRO AO CARREGAR OS MODELOS.")
-        print(erro)
-
-        return 1
-
-    audio = pyaudio.PyAudio()
-
-    try:
-
+        if parar.is_set():
+            return 0
+        audio = pyaudio.PyAudio()
         tamanho_amostra = audio.get_sample_size(FORMATO)
-
-        stream = audio.open(
-            format=FORMATO,
-            channels=CANAIS,
-            rate=TAXA_AMOSTRAGEM,
-            input=True,
-            frames_per_buffer=TAMANHO_BUFFER
+        stream = audio.open(format=FORMATO, channels=CANAIS,
+                            rate=TAXA_AMOSTRAGEM, input=True,
+                            frames_per_buffer=TAMANHO_BUFFER, start=False)
+        nome_reuniao = obter_proximo_nome_reuniao()
+        _, pasta_blocos_audio, arquivo_csv = preparar_reuniao(nome_reuniao)
+        print(f"Reunião: {nome_reuniao}")
+        print("Análise iniciada. Ao parar, aguarde os blocos pendentes.")
+        stream.start_stream()
+        captura = threading.Thread(
+            target=capturar_blocos,
+            args=(stream, parar, concluida, pendentes, erros,
+                  pasta_blocos_audio, tamanho_amostra),
         )
+        captura.start()
 
-    except Exception as erro:
-
-        print()
-        print("ERRO AO ACESSAR O MICROFONE.")
-        print(erro)
-
-        audio.terminate()
-
-        return 1
-
-    nome_reuniao = obter_proximo_nome_reuniao()
-
-    try:
-
-        (
-            pasta_reuniao,
-            pasta_blocos_audio,
-            arquivo_csv
-        ) = preparar_reuniao(nome_reuniao)
-
-    except Exception as erro:
-
-        print()
-        print("ERRO AO PREPARAR A PASTA DA REUNIÃO.")
-        print(erro)
-
-        stream.stop_stream()
-        stream.close()
-        audio.terminate()
-
-        return 1
-
-    print()
-    print("=" * 60)
-    print("        SALA DE REUNIÃO INTELIGENTE")
-    print("=" * 60)
-    print()
-    print(f"Reunião: {nome_reuniao}")
-    print(f"Cada bloco terá {DURACAO_BLOCO} segundos.")
-    print()
-    print("Pressione ENTER para iniciar a análise.")
-    print("Durante a reunião, pressione CTRL+C para finalizar.")
-    print()
-
-    numero_bloco = 1
-
-    try:
-
-        input("ENTER para começar...")
-
-        print()
-        print("Análise iniciada!")
-        print("Fale normalmente, uma pessoa por vez.")
-        print()
-
-        inicio_reuniao = time.time()
-
-        while True:
-
-            print(f"[Bloco {numero_bloco:03d}] Gravando...")
-
-            inicio = time.time()
-            dados_audio = gravar_bloco(stream)
-            fim = time.time()
-
-            caminho_audio = salvar_audio(
-                dados_audio,
-                numero_bloco,
-                pasta_blocos_audio,
-                tamanho_amostra
-            )
-
-            inicio_formatado = round(inicio - inicio_reuniao, 2)
-            fim_formatado = round(fim - inicio_reuniao, 2)
-
-            print("  Áudio gravado.")
-            print("  Analisando...")
-
+        while not concluida.is_set() or not pendentes.empty():
             try:
-
-                (
-                    pessoa,
-                    confianca_pessoa,
-                    emocao,
-                    confianca_emocao
-                ) = classificar_audio(
-                    caminho_audio,
-                    modelo_pessoas,
-                    modelo_emocoes
+                inicio, fim, caminho_audio = pendentes.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            try:
+                pessoa, conf_pessoa, emocao, conf_emocao = classificar_audio(
+                    caminho_audio, modelo_pessoas, modelo_emocoes
                 )
-
             except Exception as erro:
+                pessoa, conf_pessoa = "desconhecido", 0.0
+                emocao, conf_emocao = "incerto", 0.0
+                print(f"Falha ao analisar {caminho_audio}: {erro}")
+            registrar_resultado(arquivo_csv, round(inicio, 4), round(fim, 4),
+                                pessoa, conf_pessoa, emocao, conf_emocao, caminho_audio)
+            print(f"{inicio:.2f}s–{fim:.2f}s: {pessoa} ({conf_pessoa:.1%}), "
+                  f"{emocao} ({conf_emocao:.1%})")
 
-                pessoa = "desconhecido"
-                confianca_pessoa = 0.0
-                emocao = "incerto"
-                confianca_emocao = 0.0
-
-                print(
-                    "  A análise falhou; o bloco será "
-                    "registrado como incerto."
-                )
-                print(f"  Motivo: {erro}")
-
-            registrar_resultado(
-                arquivo_csv,
-                inicio_formatado,
-                fim_formatado,
-                pessoa,
-                confianca_pessoa,
-                emocao,
-                confianca_emocao,
-                caminho_audio
-            )
-
-            print(f"  Pessoa: {pessoa} ({confianca_pessoa:.1%})")
-            print(
-                f"  Emoção estimada: {emocao} "
-                f"({confianca_emocao:.1%})"
-            )
-            print(f"  Resultado salvo em: {arquivo_csv}")
-            print()
-
-            numero_bloco += 1
-
-    except KeyboardInterrupt:
-
-        print()
-        print("=" * 60)
-        print("Reunião encerrada.")
-        print("=" * 60)
-
+        if erros:
+            raise RuntimeError(f"Captura interrompida: {erros[0]}")
+        print(f"Reunião encerrada. Resultados: {arquivo_csv}")
+        print(f"python src/07_gerar_relatorio.py {nome_reuniao}")
+        return 0
+    except (Exception, KeyboardInterrupt) as erro:
+        print(f"ERRO: {erro}")
+        return 1
     finally:
-
-        stream.stop_stream()
-        stream.close()
-        audio.terminate()
-
-    print()
-    print(f"Resultados salvos em:\n{arquivo_csv}")
-    print(f"\nÁudios salvos em:\n{pasta_blocos_audio}")
-    print()
-    print("Próxima etapa:")
-    print(
-        "python src/07_gerar_relatorio.py "
-        f"{nome_reuniao}"
-    )
-
-    return 0
+        parar.set()
+        if captura is not None and captura.ident is not None:
+            captura.join()
+        try:
+            if stream is not None:
+                try:
+                    stream.stop_stream()
+                finally:
+                    stream.close()
+        finally:
+            if audio is not None:
+                audio.terminate()
+            for sinal, anterior in sinais_anteriores.items():
+                signal.signal(sinal, anterior)
 
 
 if __name__ == "__main__":
